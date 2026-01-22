@@ -1,0 +1,779 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		4C25021B2F17F8AA00280188 /* LinkedIn Affinity Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4C25021A2F17F8AA00280188 /* LinkedIn Affinity Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4C2502052F17F8AA00280188 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C2501E22F17F8A900280188 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4C2501E92F17F8A900280188;
+			remoteInfo = "LinkedIn Affinity";
+		};
+		4C25020F2F17F8AA00280188 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C2501E22F17F8A900280188 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4C2501E92F17F8A900280188;
+			remoteInfo = "LinkedIn Affinity";
+		};
+		4C25021C2F17F8AA00280188 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C2501E22F17F8A900280188 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4C2502192F17F8AA00280188;
+			remoteInfo = "LinkedIn Affinity Extension";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4C2502392F17F8AA00280188 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4C25021B2F17F8AA00280188 /* LinkedIn Affinity Extension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		4C2501EA2F17F8A900280188 /* LinkedIn Affinity.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "LinkedIn Affinity.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C2502042F17F8AA00280188 /* LinkedIn AffinityTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "LinkedIn AffinityTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C25020E2F17F8AA00280188 /* LinkedIn AffinityUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "LinkedIn AffinityUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C25021A2F17F8AA00280188 /* LinkedIn Affinity Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "LinkedIn Affinity Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4C2502332F17F8AA00280188 /* Exceptions for "LinkedIn Affinity Extension" folder in "LinkedIn Affinity Extension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4C2502192F17F8AA00280188 /* LinkedIn Affinity Extension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		4C2501EC2F17F8A900280188 /* LinkedIn Affinity */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "LinkedIn Affinity";
+			sourceTree = "<group>";
+		};
+		4C2502072F17F8AA00280188 /* LinkedIn AffinityTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "LinkedIn AffinityTests";
+			sourceTree = "<group>";
+		};
+		4C2502112F17F8AA00280188 /* LinkedIn AffinityUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "LinkedIn AffinityUITests";
+			sourceTree = "<group>";
+		};
+		4C25021E2F17F8AA00280188 /* LinkedIn Affinity Extension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4C2502332F17F8AA00280188 /* Exceptions for "LinkedIn Affinity Extension" folder in "LinkedIn Affinity Extension" target */,
+			);
+			explicitFolders = (
+				Resources/_locales,
+				Resources/images,
+			);
+			path = "LinkedIn Affinity Extension";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4C2501E72F17F8A900280188 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C2502012F17F8AA00280188 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C25020B2F17F8AA00280188 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C2502172F17F8AA00280188 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4C2501E12F17F8A900280188 = {
+			isa = PBXGroup;
+			children = (
+				4C2501EC2F17F8A900280188 /* LinkedIn Affinity */,
+				4C2502072F17F8AA00280188 /* LinkedIn AffinityTests */,
+				4C2502112F17F8AA00280188 /* LinkedIn AffinityUITests */,
+				4C25021E2F17F8AA00280188 /* LinkedIn Affinity Extension */,
+				4C2501EB2F17F8A900280188 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4C2501EB2F17F8A900280188 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4C2501EA2F17F8A900280188 /* LinkedIn Affinity.app */,
+				4C2502042F17F8AA00280188 /* LinkedIn AffinityTests.xctest */,
+				4C25020E2F17F8AA00280188 /* LinkedIn AffinityUITests.xctest */,
+				4C25021A2F17F8AA00280188 /* LinkedIn Affinity Extension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4C2501E92F17F8A900280188 /* LinkedIn Affinity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4C25023A2F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn Affinity" */;
+			buildPhases = (
+				4C2501E62F17F8A900280188 /* Sources */,
+				4C2501E72F17F8A900280188 /* Frameworks */,
+				4C2501E82F17F8A900280188 /* Resources */,
+				4C2502392F17F8AA00280188 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4C25021D2F17F8AA00280188 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4C2501EC2F17F8A900280188 /* LinkedIn Affinity */,
+			);
+			name = "LinkedIn Affinity";
+			packageProductDependencies = (
+			);
+			productName = "LinkedIn Affinity";
+			productReference = 4C2501EA2F17F8A900280188 /* LinkedIn Affinity.app */;
+			productType = "com.apple.product-type.application";
+		};
+		4C2502032F17F8AA00280188 /* LinkedIn AffinityTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4C25023D2F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn AffinityTests" */;
+			buildPhases = (
+				4C2502002F17F8AA00280188 /* Sources */,
+				4C2502012F17F8AA00280188 /* Frameworks */,
+				4C2502022F17F8AA00280188 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4C2502062F17F8AA00280188 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4C2502072F17F8AA00280188 /* LinkedIn AffinityTests */,
+			);
+			name = "LinkedIn AffinityTests";
+			packageProductDependencies = (
+			);
+			productName = "LinkedIn AffinityTests";
+			productReference = 4C2502042F17F8AA00280188 /* LinkedIn AffinityTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		4C25020D2F17F8AA00280188 /* LinkedIn AffinityUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4C2502402F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn AffinityUITests" */;
+			buildPhases = (
+				4C25020A2F17F8AA00280188 /* Sources */,
+				4C25020B2F17F8AA00280188 /* Frameworks */,
+				4C25020C2F17F8AA00280188 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4C2502102F17F8AA00280188 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				4C2502112F17F8AA00280188 /* LinkedIn AffinityUITests */,
+			);
+			name = "LinkedIn AffinityUITests";
+			packageProductDependencies = (
+			);
+			productName = "LinkedIn AffinityUITests";
+			productReference = 4C25020E2F17F8AA00280188 /* LinkedIn AffinityUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		4C2502192F17F8AA00280188 /* LinkedIn Affinity Extension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4C2502342F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn Affinity Extension" */;
+			buildPhases = (
+				4C2502162F17F8AA00280188 /* Sources */,
+				4C2502172F17F8AA00280188 /* Frameworks */,
+				4C2502182F17F8AA00280188 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4C25021E2F17F8AA00280188 /* LinkedIn Affinity Extension */,
+			);
+			name = "LinkedIn Affinity Extension";
+			packageProductDependencies = (
+			);
+			productName = "LinkedIn Affinity Extension";
+			productReference = 4C25021A2F17F8AA00280188 /* LinkedIn Affinity Extension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4C2501E22F17F8A900280188 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					4C2501E92F17F8A900280188 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					4C2502032F17F8AA00280188 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 4C2501E92F17F8A900280188;
+					};
+					4C25020D2F17F8AA00280188 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 4C2501E92F17F8A900280188;
+					};
+					4C2502192F17F8AA00280188 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+				};
+			};
+			buildConfigurationList = 4C2501E52F17F8A900280188 /* Build configuration list for PBXProject "LinkedIn Affinity" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4C2501E12F17F8A900280188;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 4C2501EB2F17F8A900280188 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4C2501E92F17F8A900280188 /* LinkedIn Affinity */,
+				4C2502032F17F8AA00280188 /* LinkedIn AffinityTests */,
+				4C25020D2F17F8AA00280188 /* LinkedIn AffinityUITests */,
+				4C2502192F17F8AA00280188 /* LinkedIn Affinity Extension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4C2501E82F17F8A900280188 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C2502022F17F8AA00280188 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C25020C2F17F8AA00280188 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C2502182F17F8AA00280188 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4C2501E62F17F8A900280188 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C2502002F17F8AA00280188 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C25020A2F17F8AA00280188 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4C2502162F17F8AA00280188 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4C2502062F17F8AA00280188 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4C2501E92F17F8A900280188 /* LinkedIn Affinity */;
+			targetProxy = 4C2502052F17F8AA00280188 /* PBXContainerItemProxy */;
+		};
+		4C2502102F17F8AA00280188 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4C2501E92F17F8A900280188 /* LinkedIn Affinity */;
+			targetProxy = 4C25020F2F17F8AA00280188 /* PBXContainerItemProxy */;
+		};
+		4C25021D2F17F8AA00280188 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4C2502192F17F8AA00280188 /* LinkedIn Affinity Extension */;
+			targetProxy = 4C25021C2F17F8AA00280188 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		4C2502352F17F8AA00280188 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "LinkedIn Affinity Extension/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "LinkedIn Affinity Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-Affinity.Extension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		4C2502362F17F8AA00280188 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "LinkedIn Affinity Extension/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "LinkedIn Affinity Extension";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.14;
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-Affinity.Extension";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		4C2502372F17F8AA00280188 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		4C2502382F17F8AA00280188 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		4C25023B2F17F8AA00280188 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "LinkedIn Affinity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-Affinity";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		4C25023C2F17F8AA00280188 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "LinkedIn Affinity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainStoryboardFile = Main;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					SafariServices,
+					"-framework",
+					WebKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-Affinity";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		4C25023E2F17F8AA00280188 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-AffinityTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LinkedIn Affinity.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LinkedIn Affinity";
+			};
+			name = Debug;
+		};
+		4C25023F2F17F8AA00280188 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-AffinityTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LinkedIn Affinity.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LinkedIn Affinity";
+			};
+			name = Release;
+		};
+		4C2502412F17F8AA00280188 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-AffinityUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "LinkedIn Affinity";
+			};
+			name = Debug;
+		};
+		4C2502422F17F8AA00280188 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GJ994MN2YF;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bert.LinkedIn-AffinityUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = "LinkedIn Affinity";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4C2501E52F17F8A900280188 /* Build configuration list for PBXProject "LinkedIn Affinity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C2502372F17F8AA00280188 /* Debug */,
+				4C2502382F17F8AA00280188 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4C2502342F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn Affinity Extension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C2502352F17F8AA00280188 /* Debug */,
+				4C2502362F17F8AA00280188 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4C25023A2F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn Affinity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C25023B2F17F8AA00280188 /* Debug */,
+				4C25023C2F17F8AA00280188 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4C25023D2F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn AffinityTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C25023E2F17F8AA00280188 /* Debug */,
+				4C25023F2F17F8AA00280188 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4C2502402F17F8AA00280188 /* Build configuration list for PBXNativeTarget "LinkedIn AffinityUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C2502412F17F8AA00280188 /* Debug */,
+				4C2502422F17F8AA00280188 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4C2501E22F17F8A900280188 /* Project object */;
+}

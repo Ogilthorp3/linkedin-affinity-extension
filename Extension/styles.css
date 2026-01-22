@@ -1,0 +1,124 @@
+/* LinkedIn to Affinity - Injected Styles */
+
+#affinity-send-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-right: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0a66c2 0%, #004182 100%);
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#affinity-send-btn:hover {
+  background: linear-gradient(135deg, #004182 0%, #003366 100%);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+#affinity-send-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+#affinity-send-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+#affinity-send-btn span {
+  white-space: nowrap;
+}
+
+/* Loading state */
+#affinity-send-btn.affinity-loading {
+  background: linear-gradient(135deg, #86868b 0%, #6e6e73 100%);
+  cursor: wait;
+  pointer-events: none;
+}
+
+#affinity-send-btn.affinity-loading svg {
+  animation: affinity-spin 1s linear infinite;
+}
+
+@keyframes affinity-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Success state */
+#affinity-send-btn.affinity-success {
+  background: linear-gradient(135deg, #34c759 0%, #28a745 100%);
+}
+
+/* Error state */
+#affinity-send-btn.affinity-error {
+  background: linear-gradient(135deg, #ff3b30 0%, #dc3545 100%);
+}
+
+/* Responsive: smaller button on narrow containers */
+@media (max-width: 500px) {
+  #affinity-send-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  #affinity-send-btn span {
+    display: none;
+  }
+}
+
+/* Toast notification (optional, for non-blocking feedback) */
+.affinity-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 20px;
+  background: #1d1d1f;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+  font-size: 14px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  animation: affinity-toast-in 0.3s ease;
+}
+
+.affinity-toast.fade-out {
+  animation: affinity-toast-out 0.3s ease forwards;
+}
+
+@keyframes affinity-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes affinity-toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}

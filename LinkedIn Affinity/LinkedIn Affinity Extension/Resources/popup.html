@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn to Affinity</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 2L11 13"></path>
+      <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+    </svg>
+    <div>
+      <h1>LinkedIn to Affinity</h1>
+      <p>Send conversations to your CRM</p>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label for="apiKey">Affinity API Key</label>
+    <input type="password" id="apiKey" placeholder="Enter your API key">
+  </div>
+
+  <div class="button-group">
+    <button class="btn-primary" id="saveBtn">Save</button>
+    <button class="btn-secondary" id="testBtn">Test</button>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="connection-status" id="connectionStatus">
+    <span class="connection-dot" id="connectionDot"></span>
+    <span id="connectionText">Not configured</span>
+  </div>
+
+  <div class="help-text">
+    <p>Find your API key in Affinity under Settings > API.</p>
+    <div class="shortcut">
+      <span>Shortcut:</span>
+      <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
