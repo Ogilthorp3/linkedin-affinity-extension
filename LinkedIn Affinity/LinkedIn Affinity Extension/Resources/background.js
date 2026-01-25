@@ -7,7 +7,7 @@ const AFFINITY_API_BASE = 'https://api.affinity.co';
  * Get stored API key from extension storage
  */
 async function getApiKey() {
-  const result = await browser.storage.sync.get(['affinityApiKey']);
+  const result = await chrome.storage.sync.get(['affinityApiKey']);
   return result.affinityApiKey;
 }
 
@@ -54,14 +54,30 @@ async function searchPerson(name) {
 }
 
 /**
+ * Search for a person by LinkedIn URL in field values
+ */
+async function findPersonByLinkedIn(linkedinUrl) {
+  if (!linkedinUrl) return null;
+
+  // First search by name, then filter by LinkedIn URL in the results
+  // Affinity doesn't have a direct LinkedIn URL search, so we check field values
+  // This is a limitation - in production you might want to cache/index this
+
+  return null; // Will rely on name search for now
+}
+
+/**
  * Create a new person in Affinity
  */
 async function createPerson(personData) {
   const payload = {
     first_name: personData.firstName || personData.name?.split(' ')[0] || 'Unknown',
     last_name: personData.lastName || personData.name?.split(' ').slice(1).join(' ') || '',
-    emails: []
+    emails: [] // LinkedIn doesn't expose emails
   };
+
+  // Add organization if we can determine it from headline
+  // This could be enhanced with company matching
 
   const result = await affinityRequest('/persons', {
     method: 'POST',
@@ -138,7 +154,17 @@ async function sendToAffinity(data) {
   if (sender.name) {
     const existingPersons = await searchPerson(sender.name);
 
-    if (existingPersons.length > 0) {
+    if (existingPersons.length > 1) {
+      // Multiple matches - return them for user selection
+      console.log('[LinkedIn to Affinity] Found multiple matches:', existingPersons.length);
+      return {
+        success: false,
+        needsSelection: true,
+        matches: existingPersons.slice(0, 10), // Limit to 10 matches
+        conversationData: data
+      };
+    } else if (existingPersons.length === 1) {
+      // Single match - use it directly
       person = existingPersons[0];
       console.log('[LinkedIn to Affinity] Found existing person:', person.id);
     }
@@ -166,11 +192,45 @@ async function sendToAffinity(data) {
 }
 
 /**
+ * Send conversation to a specific person (after user selection)
+ */
+async function sendToAffinityWithPerson(personId, conversationData) {
+  const noteContent = formatConversationNote(conversationData);
+  const note = await addNote(personId, noteContent);
+  console.log('[LinkedIn to Affinity] Added note to selected person:', note.id);
+
+  return {
+    success: true,
+    personId: personId,
+    noteId: note.id,
+    isNewPerson: false
+  };
+}
+
+/**
+ * Create a new person and send conversation to them
+ */
+async function createPersonAndSend(senderData, conversationData) {
+  const person = await createPerson(senderData);
+  console.log('[LinkedIn to Affinity] Created new person:', person.id);
+
+  const noteContent = formatConversationNote(conversationData);
+  const note = await addNote(person.id, noteContent);
+  console.log('[LinkedIn to Affinity] Added note:', note.id);
+
+  return {
+    success: true,
+    personId: person.id,
+    noteId: note.id,
+    isNewPerson: true,
+    personName: `${person.first_name} ${person.last_name}`.trim()
+  };
+}
+
+/**
  * Listen for messages from content script
  */
-browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('[LinkedIn to Affinity] Received message:', request.action);
-
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'sendToAffinity') {
     sendToAffinity(request.data)
       .then((result) => {
@@ -188,6 +248,40 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'sendToAffinityWithPerson') {
+    // Send to a specific person (after user selection from modal)
+    sendToAffinityWithPerson(request.personId, request.conversationData)
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] Error:', error);
+        sendResponse({
+          success: false,
+          error: error.message
+        });
+      });
+
+    return true;
+  }
+
+  if (request.action === 'createPersonAndSend') {
+    // Create new person and send (when user chooses "Create New" from modal)
+    createPersonAndSend(request.senderData, request.conversationData)
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] Error:', error);
+        sendResponse({
+          success: false,
+          error: error.message
+        });
+      });
+
+    return true;
+  }
+
   if (request.action === 'testConnection') {
     // Test API connection
     affinityRequest('/whoami')
@@ -199,6 +293,20 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
 
     return true;
+  }
+});
+
+/**
+ * Handle keyboard command
+ */
+chrome.commands.onCommand.addListener((command) => {
+  if (command === 'send-to-affinity') {
+    // Send message to active tab's content script
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0]?.id) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'triggerSend' });
+      }
+    });
   }
 });
 

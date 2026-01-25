@@ -1,5 +1,6 @@
 /* LinkedIn to Affinity - Injected Styles */
 
+.affinity-send-btn,
 #affinity-send-btn {
   display: inline-flex;
   align-items: center;
@@ -18,34 +19,40 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.affinity-send-btn:hover,
 #affinity-send-btn:hover {
   background: linear-gradient(135deg, #004182 0%, #003366 100%);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   transform: translateY(-1px);
 }
 
+.affinity-send-btn:active,
 #affinity-send-btn:active {
   transform: translateY(0);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+.affinity-send-btn svg,
 #affinity-send-btn svg {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
 }
 
+.affinity-send-btn span,
 #affinity-send-btn span {
   white-space: nowrap;
 }
 
 /* Loading state */
+.affinity-send-btn.affinity-loading,
 #affinity-send-btn.affinity-loading {
   background: linear-gradient(135deg, #86868b 0%, #6e6e73 100%);
   cursor: wait;
   pointer-events: none;
 }
 
+.affinity-send-btn.affinity-loading svg,
 #affinity-send-btn.affinity-loading svg {
   animation: affinity-spin 1s linear infinite;
 }
@@ -60,28 +67,43 @@
 }
 
 /* Success state */
+.affinity-send-btn.affinity-success,
 #affinity-send-btn.affinity-success {
   background: linear-gradient(135deg, #34c759 0%, #28a745 100%);
 }
 
 /* Error state */
+.affinity-send-btn.affinity-error,
 #affinity-send-btn.affinity-error {
   background: linear-gradient(135deg, #ff3b30 0%, #dc3545 100%);
 }
 
+/* Compact button style for conversation list */
+.affinity-send-btn.affinity-compact {
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 12px;
+}
+
+.affinity-send-btn.affinity-compact span {
+  display: none;
+}
+
 /* Responsive: smaller button on narrow containers */
 @media (max-width: 500px) {
+  .affinity-send-btn,
   #affinity-send-btn {
     padding: 6px 10px;
     font-size: 12px;
   }
 
+  .affinity-send-btn span,
   #affinity-send-btn span {
     display: none;
   }
 }
 
-/* Toast notification */
+/* Toast notification (optional, for non-blocking feedback) */
 .affinity-toast {
   position: fixed;
   bottom: 24px;
@@ -121,4 +143,195 @@
     opacity: 0;
     transform: translateY(20px);
   }
+}
+
+/* Contact Selection Modal */
+.affinity-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  animation: affinity-fade-in 0.2s ease;
+}
+
+@keyframes affinity-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.affinity-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 420px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  animation: affinity-slide-up 0.2s ease;
+}
+
+@keyframes affinity-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.affinity-modal-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.affinity-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.affinity-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.affinity-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #86868b;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.affinity-modal-close:hover {
+  color: #1d1d1f;
+}
+
+.affinity-modal-subtitle {
+  padding: 12px 20px;
+  margin: 0;
+  font-size: 13px;
+  color: #86868b;
+  background: #f5f5f7;
+}
+
+.affinity-contact-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.affinity-contact-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e5e5e5;
+  transition: background 0.2s ease;
+}
+
+.affinity-contact-item:hover {
+  background: #f5f5f7;
+}
+
+.affinity-contact-item:last-child {
+  border-bottom: none;
+}
+
+.affinity-contact-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.affinity-contact-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.affinity-contact-email,
+.affinity-contact-org {
+  font-size: 12px;
+  color: #86868b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.affinity-contact-select {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #0a66c2;
+  background: transparent;
+  border: 1px solid #0a66c2;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.affinity-contact-select:hover {
+  background: #0a66c2;
+  color: #ffffff;
+}
+
+.affinity-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.affinity-btn-primary,
+.affinity-btn-secondary {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.affinity-btn-primary {
+  background: linear-gradient(135deg, #0a66c2 0%, #004182 100%);
+  color: #ffffff;
+}
+
+.affinity-btn-primary:hover {
+  background: linear-gradient(135deg, #004182 0%, #003366 100%);
+}
+
+.affinity-btn-secondary {
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: 1px solid #e5e5e5;
+}
+
+.affinity-btn-secondary:hover {
+  background: #e5e5e5;
 }
