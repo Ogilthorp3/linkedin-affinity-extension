@@ -250,12 +250,12 @@
      * Find the active conversation header
      */
     findConversationHeader() {
-      // Strategy 1: Known selectors
+      // Strategy 1: Known selectors for the message thread (right pane), NOT the conversation list (left pane)
       const knownSelectors = [
         '.msg-thread__content-header',
         '.msg-overlay-conversation-bubble__header',
-        '.msg-thread header',
-        '[class*="msg"][class*="header"]:not([class*="list"])'
+        '.msg-s-message-list-container header',
+        '.msg-thread header'
       ];
 
       for (const selector of knownSelectors) {
@@ -265,10 +265,10 @@
         }
       }
 
-      // Strategy 2: Find header-like element in message thread area
-      const threadArea = document.querySelector('[class*="msg-thread"], [class*="conversation-bubble"], [class*="message-thread"]');
+      // Strategy 2: Find header-like element in message thread area (must be in thread, not list)
+      const threadArea = document.querySelector('.msg-thread, .msg-s-message-list-container, [class*="conversation-bubble"]');
       if (threadArea) {
-        const header = threadArea.querySelector('header, [class*="header"]');
+        const header = threadArea.querySelector('header, [class*="header"]:not([class*="list"])');
         if (header) return header;
       }
 
@@ -309,7 +309,7 @@
         const words = trimmed.split(/\s+/);
         if (words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(trimmed) && trimmed.length < 50) {
           // Exclude common non-name patterns
-          if (!/^(You|Me|Today|Yesterday|New|Message|Chat|Conversation)/i.test(trimmed)) {
+          if (!/^(You|Me|Today|Yesterday|New|Message|Chat|Conversation|Messaging|Focused|Other|Inbox)/i.test(trimmed)) {
             return trimmed;
           }
         }
@@ -411,12 +411,14 @@
       }
 
       // Fallback: try known selectors if adaptive didn't work
+      // Note: Only use selectors from the active conversation thread, NOT the conversation list
       if (!info.name) {
         const nameElement = document.querySelector(
           '.msg-thread__link-to-profile h2, ' +
-          '.msg-conversation-listitem__participant-names, ' +
           '.msg-overlay-bubble-header__title, ' +
-          '.msg-thread h2'
+          '.msg-thread h2, ' +
+          '.msg-s-message-list-container h2, ' +
+          '.msg-title-bar .msg-entity-lockup__entity-title'
         );
         if (nameElement) {
           info.name = nameElement.textContent?.trim();
@@ -453,14 +455,11 @@
    */
   function extractMessages() {
     const messages = [];
+    const seenContent = new Set(); // Track seen messages to avoid duplicates
 
     try {
-      // Find all message items in the conversation
-      const messageElements = document.querySelectorAll(
-        '.msg-s-message-list__event, ' +
-        '.msg-s-event-listitem, ' +
-        '.message-item'
-      );
+      // Find all message items in the conversation - use specific selector to avoid duplicates
+      const messageElements = document.querySelectorAll('.msg-s-event-listitem');
 
       messageElements.forEach((msgEl) => {
         const message = {
@@ -503,8 +502,13 @@
                           msgEl.querySelector('.msg-s-message-group--outbound');
         message.isIncoming = !isOutgoing;
 
+        // Only add if we have content and haven't seen this exact message before
         if (message.content) {
-          messages.push(message);
+          const contentKey = `${message.sender || ''}:${message.content}`;
+          if (!seenContent.has(contentKey)) {
+            seenContent.add(contentKey);
+            messages.push(message);
+          }
         }
       });
 
@@ -649,21 +653,21 @@
 
   /**
    * Show feedback message on the modal (success, warning, or error)
+   * @param {Object} duplicateData - Optional data for "Send Anyway" button (personId, conversationData)
    */
-  function showModalFeedback(modalOverlay, type, message) {
+  function showModalFeedback(modalOverlay, type, message, duplicateData = null) {
     const modal = modalOverlay.querySelector('.affinity-modal');
     if (!modal) return;
 
     // Remove loading state
     modal.classList.remove('affinity-modal-loading');
 
-    // Hide contact list and footer
+    // Hide contact list
     const list = modal.querySelector('.affinity-contact-list');
     const footer = modal.querySelector('.affinity-modal-footer');
     const subtitle = modal.querySelector('.affinity-modal-subtitle');
 
     if (list) list.style.display = 'none';
-    if (footer) footer.style.display = 'none';
 
     // Update header
     const header = modal.querySelector('.affinity-modal-header h3');
@@ -678,9 +682,61 @@
       subtitle.className = `affinity-modal-subtitle affinity-feedback-${type}`;
     }
 
-    // Auto-close after delay
-    const delay = type === 'error' ? 3000 : 2000;
-    setTimeout(() => hideContactModal(activeButton), delay);
+    // For duplicates, show "Send Anyway" button; otherwise hide footer and auto-close
+    if (type === 'warning' && duplicateData && footer) {
+      footer.innerHTML = `
+        <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
+        <button class="affinity-btn-primary affinity-modal-send-anyway">Send Anyway</button>
+      `;
+      footer.style.display = 'flex';
+
+      footer.querySelector('.affinity-modal-cancel').addEventListener('click', () => {
+        hideContactModal(activeButton);
+      });
+
+      footer.querySelector('.affinity-modal-send-anyway').addEventListener('click', () => {
+        handleForceSend(duplicateData.personId, duplicateData.conversationData);
+      });
+    } else {
+      if (footer) footer.style.display = 'none';
+      // Auto-close after delay
+      const delay = type === 'error' ? 3000 : 2000;
+      setTimeout(() => hideContactModal(activeButton), delay);
+    }
+  }
+
+  /**
+   * Force send to Affinity (bypass duplicate check)
+   */
+  async function handleForceSend(personId, conversationData) {
+    const modalOverlay = document.getElementById(MODAL_ID);
+    const button = activeButton;
+
+    try {
+      if (modalOverlay) {
+        modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
+      }
+
+      const response = await sendMessage({
+        action: 'sendToAffinityWithPerson',
+        personId: personId,
+        conversationData: conversationData,
+        forceSend: true
+      });
+
+      if (response.success) {
+        if (modalOverlay) {
+          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!');
+        }
+      } else {
+        throw new Error(response.error || 'Failed to send');
+      }
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error:', error);
+      if (modalOverlay) {
+        showModalFeedback(modalOverlay, 'error', error.message || 'Failed to send');
+      }
+    }
   }
 
   /**
@@ -734,10 +790,13 @@
           }
         }
       } else if (response.isDuplicate) {
-        // Show duplicate warning on modal
+        // Show duplicate warning on modal with "Send Anyway" option
         const dateStr = response.sentAt ? new Date(response.sentAt).toLocaleDateString() : 'previously';
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'warning', `This conversation was already sent on ${dateStr}`);
+          showModalFeedback(modalOverlay, 'warning', `This conversation was already sent on ${dateStr}`, {
+            personId: personId,
+            conversationData: conversationData
+          });
         } else if (button) {
           button.classList.add('affinity-warning');
           const span = button.querySelector('span');
@@ -1071,7 +1130,21 @@
         senderInfo = extractSenderInfo();
       }
 
-      const messages = extractMessages();
+      // Only extract messages if the clicked contact matches the active conversation
+      let messages = [];
+      const activeConversationInfo = extractSenderInfo();
+
+      if (activeConversationInfo?.name && senderInfo?.name) {
+        // Normalize names for comparison (lowercase, trim, remove extra spaces)
+        const clickedName = senderInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
+        const activeName = activeConversationInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
+
+        // Check if names match or if one contains the other (for partial matches)
+        if (clickedName === activeName || clickedName.includes(activeName) || activeName.includes(clickedName)) {
+          // Names match - this is the active conversation, extract messages
+          messages = extractMessages();
+        }
+      }
 
       // Validate we have minimum required data
       if (!senderInfo.name) {

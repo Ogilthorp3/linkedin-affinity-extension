@@ -151,54 +151,42 @@ function formatConversationNote(data) {
 }
 
 /**
- * Check if a conversation has already been sent to Affinity
+ * Get notes for a person from Affinity
+ */
+async function getNotesForPerson(personId) {
+  try {
+    const result = await affinityRequest(`/notes?person_id=${personId}`);
+    return result.notes || result || [];
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error getting notes:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if a conversation has already been sent to Affinity by checking existing notes
  */
 async function checkDuplicate(conversationUrl, personId) {
   try {
-    // Get stored sent conversations
-    const result = await browserAPI.storage.local.get(['sentConversations']);
-    const sentConversations = result.sentConversations || {};
+    // Get notes for this person from Affinity
+    const notes = await getNotesForPerson(personId);
 
-    // Check if this conversation URL was already sent to this person
-    const key = `${personId}:${conversationUrl}`;
-    if (sentConversations[key]) {
-      return {
-        isDuplicate: true,
-        sentAt: sentConversations[key]
-      };
+    // Check if any note contains this conversation URL
+    for (const note of notes) {
+      if (note.content && note.content.includes(conversationUrl)) {
+        return {
+          isDuplicate: true,
+          sentAt: note.created_at || null,
+          noteId: note.id
+        };
+      }
     }
 
     return { isDuplicate: false };
   } catch (error) {
     console.error('[LinkedIn to Affinity] Error checking duplicate:', error);
+    // On error, allow sending (fail open)
     return { isDuplicate: false };
-  }
-}
-
-/**
- * Mark a conversation as sent
- */
-async function markAsSent(conversationUrl, personId) {
-  try {
-    const result = await browserAPI.storage.local.get(['sentConversations']);
-    const sentConversations = result.sentConversations || {};
-
-    const key = `${personId}:${conversationUrl}`;
-    sentConversations[key] = new Date().toISOString();
-
-    // Keep only last 1000 entries to prevent storage bloat
-    const keys = Object.keys(sentConversations);
-    if (keys.length > 1000) {
-      const sortedKeys = keys.sort((a, b) =>
-        new Date(sentConversations[a]) - new Date(sentConversations[b])
-      );
-      // Remove oldest 100 entries
-      sortedKeys.slice(0, 100).forEach(k => delete sentConversations[k]);
-    }
-
-    await browserAPI.storage.local.set({ sentConversations });
-  } catch (error) {
-    console.error('[LinkedIn to Affinity] Error marking as sent:', error);
   }
 }
 
@@ -229,25 +217,29 @@ async function sendToAffinity(data) {
 
 /**
  * Send conversation to a specific person (after user selection)
+ * @param {boolean} forceSend - If true, skip duplicate check
  */
-async function sendToAffinityWithPerson(personId, conversationData) {
-  // Check for duplicate
-  const duplicateCheck = await checkDuplicate(conversationData.conversationUrl, personId);
-  if (duplicateCheck.isDuplicate) {
-    return {
-      success: false,
-      isDuplicate: true,
-      sentAt: duplicateCheck.sentAt,
-      error: `This conversation was already sent on ${new Date(duplicateCheck.sentAt).toLocaleDateString()}`
-    };
+async function sendToAffinityWithPerson(personId, conversationData, forceSend = false) {
+  // Check for duplicate (unless force sending)
+  if (!forceSend) {
+    const duplicateCheck = await checkDuplicate(conversationData.conversationUrl, personId);
+    if (duplicateCheck.isDuplicate) {
+      const dateStr = duplicateCheck.sentAt
+        ? new Date(duplicateCheck.sentAt).toLocaleDateString()
+        : 'a previous date';
+      return {
+        success: false,
+        isDuplicate: true,
+        sentAt: duplicateCheck.sentAt,
+        personId: personId, // Include for "Send Anyway" option
+        error: `This conversation was already sent on ${dateStr}`
+      };
+    }
   }
 
   const noteContent = formatConversationNote(conversationData);
   const note = await addNote(personId, noteContent);
   console.log('[LinkedIn to Affinity] Added note to selected person:', note.id);
-
-  // Mark as sent
-  await markAsSent(conversationData.conversationUrl, personId);
 
   return {
     success: true,
@@ -267,9 +259,6 @@ async function createPersonAndSend(senderData, conversationData) {
   const noteContent = formatConversationNote(conversationData);
   const note = await addNote(person.id, noteContent);
   console.log('[LinkedIn to Affinity] Added note:', note.id);
-
-  // Mark as sent
-  await markAsSent(conversationData.conversationUrl, person.id);
 
   return {
     success: true,
@@ -306,7 +295,7 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'sendToAffinityWithPerson') {
     // Send to a specific person (after user selection from modal)
-    sendToAffinityWithPerson(request.personId, request.conversationData)
+    sendToAffinityWithPerson(request.personId, request.conversationData, request.forceSend || false)
       .then((result) => {
         console.log('[LinkedIn to Affinity] sendToAffinityWithPerson result:', result);
         sendResponse(result);

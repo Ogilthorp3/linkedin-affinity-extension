@@ -250,12 +250,12 @@
      * Find the active conversation header
      */
     findConversationHeader() {
-      // Strategy 1: Known selectors
+      // Strategy 1: Known selectors for the message thread (right pane), NOT the conversation list (left pane)
       const knownSelectors = [
         '.msg-thread__content-header',
         '.msg-overlay-conversation-bubble__header',
-        '.msg-thread header',
-        '[class*="msg"][class*="header"]:not([class*="list"])'
+        '.msg-s-message-list-container header',
+        '.msg-thread header'
       ];
 
       for (const selector of knownSelectors) {
@@ -265,10 +265,10 @@
         }
       }
 
-      // Strategy 2: Find header-like element in message thread area
-      const threadArea = document.querySelector('[class*="msg-thread"], [class*="conversation-bubble"], [class*="message-thread"]');
+      // Strategy 2: Find header-like element in message thread area (must be in thread, not list)
+      const threadArea = document.querySelector('.msg-thread, .msg-s-message-list-container, [class*="conversation-bubble"]');
       if (threadArea) {
-        const header = threadArea.querySelector('header, [class*="header"]');
+        const header = threadArea.querySelector('header, [class*="header"]:not([class*="list"])');
         if (header) return header;
       }
 
@@ -309,7 +309,7 @@
         const words = trimmed.split(/\s+/);
         if (words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(trimmed) && trimmed.length < 50) {
           // Exclude common non-name patterns
-          if (!/^(You|Me|Today|Yesterday|New|Message|Chat|Conversation)/i.test(trimmed)) {
+          if (!/^(You|Me|Today|Yesterday|New|Message|Chat|Conversation|Messaging|Focused|Other|Inbox)/i.test(trimmed)) {
             return trimmed;
           }
         }
@@ -411,12 +411,14 @@
       }
 
       // Fallback: try known selectors if adaptive didn't work
+      // Note: Only use selectors from the active conversation thread, NOT the conversation list
       if (!info.name) {
         const nameElement = document.querySelector(
           '.msg-thread__link-to-profile h2, ' +
-          '.msg-conversation-listitem__participant-names, ' +
           '.msg-overlay-bubble-header__title, ' +
-          '.msg-thread h2'
+          '.msg-thread h2, ' +
+          '.msg-s-message-list-container h2, ' +
+          '.msg-title-bar .msg-entity-lockup__entity-title'
         );
         if (nameElement) {
           info.name = nameElement.textContent?.trim();
@@ -453,14 +455,11 @@
    */
   function extractMessages() {
     const messages = [];
+    const seenContent = new Set(); // Track seen messages to avoid duplicates
 
     try {
-      // Find all message items in the conversation
-      const messageElements = document.querySelectorAll(
-        '.msg-s-message-list__event, ' +
-        '.msg-s-event-listitem, ' +
-        '.message-item'
-      );
+      // Find all message items in the conversation - use specific selector to avoid duplicates
+      const messageElements = document.querySelectorAll('.msg-s-event-listitem');
 
       messageElements.forEach((msgEl) => {
         const message = {
@@ -503,8 +502,13 @@
                           msgEl.querySelector('.msg-s-message-group--outbound');
         message.isIncoming = !isOutgoing;
 
+        // Only add if we have content and haven't seen this exact message before
         if (message.content) {
-          messages.push(message);
+          const contentKey = `${message.sender || ''}:${message.content}`;
+          if (!seenContent.has(contentKey)) {
+            seenContent.add(contentKey);
+            messages.push(message);
+          }
         }
       });
 
@@ -648,6 +652,94 @@
   }
 
   /**
+   * Show feedback message on the modal (success, warning, or error)
+   * @param {Object} duplicateData - Optional data for "Send Anyway" button (personId, conversationData)
+   */
+  function showModalFeedback(modalOverlay, type, message, duplicateData = null) {
+    const modal = modalOverlay.querySelector('.affinity-modal');
+    if (!modal) return;
+
+    // Remove loading state
+    modal.classList.remove('affinity-modal-loading');
+
+    // Hide contact list
+    const list = modal.querySelector('.affinity-contact-list');
+    const footer = modal.querySelector('.affinity-modal-footer');
+    const subtitle = modal.querySelector('.affinity-modal-subtitle');
+
+    if (list) list.style.display = 'none';
+
+    // Update header
+    const header = modal.querySelector('.affinity-modal-header h3');
+    if (header) {
+      header.textContent = type === 'success' ? 'Success' :
+                           type === 'warning' ? 'Already Sent' : 'Error';
+    }
+
+    // Show feedback message
+    if (subtitle) {
+      subtitle.textContent = message;
+      subtitle.className = `affinity-modal-subtitle affinity-feedback-${type}`;
+    }
+
+    // For duplicates, show "Send Anyway" button; otherwise hide footer and auto-close
+    if (type === 'warning' && duplicateData && footer) {
+      footer.innerHTML = `
+        <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
+        <button class="affinity-btn-primary affinity-modal-send-anyway">Send Anyway</button>
+      `;
+      footer.style.display = 'flex';
+
+      footer.querySelector('.affinity-modal-cancel').addEventListener('click', () => {
+        hideContactModal(activeButton);
+      });
+
+      footer.querySelector('.affinity-modal-send-anyway').addEventListener('click', () => {
+        handleForceSend(duplicateData.personId, duplicateData.conversationData);
+      });
+    } else {
+      if (footer) footer.style.display = 'none';
+      // Auto-close after delay
+      const delay = type === 'error' ? 3000 : 2000;
+      setTimeout(() => hideContactModal(activeButton), delay);
+    }
+  }
+
+  /**
+   * Force send to Affinity (bypass duplicate check)
+   */
+  async function handleForceSend(personId, conversationData) {
+    const modalOverlay = document.getElementById(MODAL_ID);
+    const button = activeButton;
+
+    try {
+      if (modalOverlay) {
+        modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
+      }
+
+      const response = await sendMessage({
+        action: 'sendToAffinityWithPerson',
+        personId: personId,
+        conversationData: conversationData,
+        forceSend: true
+      });
+
+      if (response.success) {
+        if (modalOverlay) {
+          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!');
+        }
+      } else {
+        throw new Error(response.error || 'Failed to send');
+      }
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error:', error);
+      if (modalOverlay) {
+        showModalFeedback(modalOverlay, 'error', error.message || 'Failed to send');
+      }
+    }
+  }
+
+  /**
    * Reset button to default state
    */
   function resetButton(button) {
@@ -666,52 +758,16 @@
   }
 
   /**
-   * Show feedback message on the modal
-   */
-  function showModalFeedback(type, message) {
-    const modal = document.getElementById(MODAL_ID);
-    if (!modal) return;
-
-    const modalContent = modal.querySelector('.affinity-modal');
-    if (!modalContent) return;
-
-    // Remove loading state
-    modalContent.classList.remove('affinity-modal-loading');
-
-    // Create or update feedback element
-    let feedback = modal.querySelector('.affinity-modal-feedback');
-    if (!feedback) {
-      feedback = document.createElement('div');
-      feedback.className = 'affinity-modal-feedback';
-      modalContent.appendChild(feedback);
-    }
-
-    feedback.className = `affinity-modal-feedback affinity-feedback-${type}`;
-    feedback.innerHTML = `
-      <span class="affinity-feedback-icon">${type === 'success' ? '✓' : type === 'duplicate' ? '⚠' : '✕'}</span>
-      <span class="affinity-feedback-message">${message}</span>
-    `;
-
-    // Auto-close modal after showing feedback
-    setTimeout(() => {
-      hideContactModal(activeButton);
-      if (activeButton) {
-        resetButton(activeButton);
-      }
-    }, 1500);
-  }
-
-  /**
    * Handle contact selection from modal
    */
   async function handleContactSelection(personId, conversationData) {
-    const modal = document.getElementById(MODAL_ID);
+    const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
     try {
       // Show loading state on modal
-      if (modal) {
-        modal.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
+      if (modalOverlay) {
+        modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
       }
 
       const response = await sendMessage({
@@ -721,15 +777,48 @@
       });
 
       if (response.success) {
-        showModalFeedback('success', 'Conversation sent to Affinity!');
+        // Show success feedback on modal
+        if (modalOverlay) {
+          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!');
+        } else {
+          // Fallback to button feedback if modal was closed
+          if (button) {
+            button.classList.add('affinity-success');
+            const span = button.querySelector('span');
+            if (span) span.textContent = 'Sent!';
+            setTimeout(() => resetButton(button), 2000);
+          }
+        }
       } else if (response.isDuplicate) {
-        showModalFeedback('duplicate', 'Already sent to this contact');
+        // Show duplicate warning on modal with "Send Anyway" option
+        const dateStr = response.sentAt ? new Date(response.sentAt).toLocaleDateString() : 'previously';
+        if (modalOverlay) {
+          showModalFeedback(modalOverlay, 'warning', `This conversation was already sent on ${dateStr}`, {
+            personId: personId,
+            conversationData: conversationData
+          });
+        } else if (button) {
+          button.classList.add('affinity-warning');
+          const span = button.querySelector('span');
+          if (span) span.textContent = 'Already sent';
+          setTimeout(() => resetButton(button), 3000);
+        }
       } else {
         throw new Error(response.error || 'Failed to send');
       }
     } catch (error) {
       console.error('[LinkedIn to Affinity] Error:', error);
-      showModalFeedback('error', error.message || 'Failed to send');
+      if (modalOverlay) {
+        showModalFeedback(modalOverlay, 'error', error.message || 'Failed to send');
+      } else {
+        hideContactModal();
+        if (button) {
+          button.classList.add('affinity-error');
+          const span = button.querySelector('span');
+          if (span) span.textContent = error.message || 'Error';
+          setTimeout(() => resetButton(button), 3000);
+        }
+      }
     }
   }
 
@@ -737,13 +826,13 @@
    * Handle creating a new contact from modal
    */
   async function handleCreateNewContact(conversationData) {
-    const modal = document.getElementById(MODAL_ID);
+    const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
     try {
       // Show loading state on modal
-      if (modal) {
-        modal.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
+      if (modalOverlay) {
+        modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
       }
 
       const response = await sendMessage({
@@ -752,24 +841,32 @@
         conversationData: conversationData
       });
 
-      hideContactModal();
-
-      if (response.success && button) {
-        button.classList.add('affinity-success');
-        const span = button.querySelector('span');
-        if (span) span.textContent = 'Sent!';
-        setTimeout(() => resetButton(button), 2000);
-      } else if (!response.success) {
+      if (response.success) {
+        // Show success feedback on modal
+        const name = response.personName || conversationData.sender?.name || 'contact';
+        if (modalOverlay) {
+          showModalFeedback(modalOverlay, 'success', `Created ${name} and sent conversation!`);
+        } else if (button) {
+          button.classList.add('affinity-success');
+          const span = button.querySelector('span');
+          if (span) span.textContent = 'Sent!';
+          setTimeout(() => resetButton(button), 2000);
+        }
+      } else {
         throw new Error(response.error || 'Failed to create contact');
       }
     } catch (error) {
       console.error('[LinkedIn to Affinity] Error:', error);
-      hideContactModal();
-      if (button) {
-        button.classList.add('affinity-error');
-        const span = button.querySelector('span');
-        if (span) span.textContent = error.message || 'Error';
-        setTimeout(() => resetButton(button), 3000);
+      if (modalOverlay) {
+        showModalFeedback(modalOverlay, 'error', error.message || 'Failed to create contact');
+      } else {
+        hideContactModal();
+        if (button) {
+          button.classList.add('affinity-error');
+          const span = button.querySelector('span');
+          if (span) span.textContent = error.message || 'Error';
+          setTimeout(() => resetButton(button), 3000);
+        }
       }
     }
   }
@@ -860,10 +957,27 @@
   }
 
   /**
-   * Find the best place to insert a button in an element
+   * Find the best place to insert a button in an element (under the name)
    */
   function findButtonInsertionPoint(element) {
-    // Strategy 1: Look for existing actions area
+    // Strategy 1: Find the name element and insert after it
+    const nameSelectors = [
+      '.msg-conversation-listitem__participant-names',
+      '.msg-conversation-card__participant-names',
+      '[data-anonymize="person-name"]',
+      '[class*="participant-name"]',
+      '[class*="profile-name"]',
+      'h3', 'h4'
+    ];
+
+    for (const selector of nameSelectors) {
+      const nameElement = element.querySelector(selector);
+      if (nameElement && nameElement.textContent.trim().length > 0) {
+        return { parent: nameElement.parentElement || element, position: 'after-name', nameElement };
+      }
+    }
+
+    // Strategy 2: Look for existing actions area
     const actionsSelectors = [
       '[class*="actions"]',
       '[class*="controls"]',
@@ -878,15 +992,8 @@
       }
     }
 
-    // Strategy 2: Find a good container that's not too nested
-    // Prefer right side of the element
-    const rightAlignedContainer = element.querySelector('[class*="right"], [style*="flex-end"], [style*="right"]');
-    if (rightAlignedContainer) {
-      return { parent: rightAlignedContainer, position: 'append' };
-    }
-
-    // Strategy 3: Add to element itself with absolute positioning
-    return { parent: element, position: 'absolute' };
+    // Strategy 3: Add to element itself with block positioning
+    return { parent: element, position: 'append-block' };
   }
 
   /**
@@ -923,22 +1030,29 @@
       const button = createAffinityButton(item);
       const insertionPoint = findButtonInsertionPoint(item);
 
-      if (insertionPoint.position === 'absolute') {
-        // Add with absolute positioning
-        item.style.position = 'relative';
-        button.style.position = 'absolute';
-        button.style.right = '8px';
-        button.style.top = '50%';
-        button.style.transform = 'translateY(-50%)';
-        button.style.zIndex = '10';
+      try {
+        if (insertionPoint.position === 'after-name' && insertionPoint.nameElement && insertionPoint.nameElement.parentNode) {
+          // Insert button after the name element
+          button.style.display = 'block';
+          button.style.marginTop = '6px';
+          button.style.marginLeft = '0';
+          insertionPoint.nameElement.parentNode.insertBefore(button, insertionPoint.nameElement.nextSibling);
+        } else if (insertionPoint.position === 'prepend' && insertionPoint.parent) {
+          insertionPoint.parent.insertBefore(button, insertionPoint.parent.firstChild);
+        } else {
+          // Fallback: append to item with relative positioning
+          item.style.position = 'relative';
+          button.style.display = 'block';
+          button.style.marginTop = '6px';
+          item.appendChild(button);
+        }
+        injectedCount++;
+      } catch (err) {
+        // Final fallback: just append to item
+        console.log('[LinkedIn to Affinity] Fallback button insertion');
         item.appendChild(button);
-      } else if (insertionPoint.position === 'prepend') {
-        insertionPoint.parent.insertBefore(button, insertionPoint.parent.firstChild);
-      } else {
-        insertionPoint.parent.appendChild(button);
+        injectedCount++;
       }
-
-      injectedCount++;
     });
 
     // Also inject into the active conversation header
@@ -966,21 +1080,28 @@
       const button = createAffinityButton(header.closest('[class*="msg-thread"], [class*="conversation"]') || header);
       const insertionPoint = findButtonInsertionPoint(header);
 
-      if (insertionPoint.position === 'absolute') {
-        header.style.position = 'relative';
-        button.style.position = 'absolute';
-        button.style.right = '8px';
-        button.style.top = '50%';
-        button.style.transform = 'translateY(-50%)';
-        button.style.zIndex = '10';
+      try {
+        if (insertionPoint.position === 'after-name' && insertionPoint.nameElement && insertionPoint.nameElement.parentNode) {
+          // Insert button after the name element
+          button.style.display = 'block';
+          button.style.marginTop = '6px';
+          button.style.marginLeft = '0';
+          insertionPoint.nameElement.parentNode.insertBefore(button, insertionPoint.nameElement.nextSibling);
+        } else if (insertionPoint.position === 'prepend' && insertionPoint.parent) {
+          insertionPoint.parent.insertBefore(button, insertionPoint.parent.firstChild);
+        } else {
+          // Fallback: append to header
+          button.style.display = 'block';
+          button.style.marginTop = '6px';
+          header.appendChild(button);
+        }
+        injectedCount++;
+      } catch (err) {
+        // Final fallback: just append to header
+        console.log('[LinkedIn to Affinity] Fallback header button insertion');
         header.appendChild(button);
-      } else if (insertionPoint.position === 'prepend') {
-        insertionPoint.parent.insertBefore(button, insertionPoint.parent.firstChild);
-      } else {
-        insertionPoint.parent.appendChild(button);
+        injectedCount++;
       }
-
-      injectedCount++;
     }
 
     if (injectedCount > 0) {
@@ -1009,7 +1130,21 @@
         senderInfo = extractSenderInfo();
       }
 
-      const messages = extractMessages();
+      // Only extract messages if the clicked contact matches the active conversation
+      let messages = [];
+      const activeConversationInfo = extractSenderInfo();
+
+      if (activeConversationInfo?.name && senderInfo?.name) {
+        // Normalize names for comparison (lowercase, trim, remove extra spaces)
+        const clickedName = senderInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
+        const activeName = activeConversationInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
+
+        // Check if names match or if one contains the other (for partial matches)
+        if (clickedName === activeName || clickedName.includes(activeName) || activeName.includes(clickedName)) {
+          // Names match - this is the active conversation, extract messages
+          messages = extractMessages();
+        }
+      }
 
       // Validate we have minimum required data
       if (!senderInfo.name) {
