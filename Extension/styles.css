@@ -78,6 +78,12 @@
   background: linear-gradient(135deg, #ff3b30 0%, #dc3545 100%);
 }
 
+/* Warning state (for duplicates) */
+.affinity-send-btn.affinity-warning,
+#affinity-send-btn.affinity-warning {
+  background: linear-gradient(135deg, #ff9500 0%, #ff7b00 100%);
+}
+
 /* Compact button style for conversation list */
 .affinity-send-btn.affinity-compact {
   padding: 4px 8px;
@@ -296,6 +302,17 @@
 .affinity-contact-select:hover {
   background: #0a66c2;
   color: #ffffff;
+}
+
+.affinity-no-matches {
+  padding: 20px;
+  text-align: center;
+  color: #1d1d1f;
+}
+
+.affinity-no-matches p {
+  margin: 0;
+  font-size: 14px;
 }
 
 .affinity-modal-footer {

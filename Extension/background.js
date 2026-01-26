@@ -1,14 +1,23 @@
 // LinkedIn to Affinity - Background Service Worker
 // Handles Affinity API communication
 
+// Use browser or chrome API (Safari compatibility)
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 const AFFINITY_API_BASE = 'https://api.affinity.co';
 
 /**
  * Get stored API key from extension storage
  */
 async function getApiKey() {
-  const result = await chrome.storage.sync.get(['affinityApiKey']);
-  return result.affinityApiKey;
+  try {
+    const result = await browserAPI.storage.sync.get(['affinityApiKey']);
+    return result.affinityApiKey;
+  } catch (error) {
+    // Fallback to local storage if sync not available
+    const result = await browserAPI.storage.local.get(['affinityApiKey']);
+    return result.affinityApiKey;
+  }
 }
 
 /**
@@ -142,52 +151,79 @@ function formatConversationNote(data) {
 }
 
 /**
+ * Check if a conversation has already been sent to Affinity
+ */
+async function checkDuplicate(conversationUrl, personId) {
+  try {
+    // Get stored sent conversations
+    const result = await browserAPI.storage.local.get(['sentConversations']);
+    const sentConversations = result.sentConversations || {};
+
+    // Check if this conversation URL was already sent to this person
+    const key = `${personId}:${conversationUrl}`;
+    if (sentConversations[key]) {
+      return {
+        isDuplicate: true,
+        sentAt: sentConversations[key]
+      };
+    }
+
+    return { isDuplicate: false };
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error checking duplicate:', error);
+    return { isDuplicate: false };
+  }
+}
+
+/**
+ * Mark a conversation as sent
+ */
+async function markAsSent(conversationUrl, personId) {
+  try {
+    const result = await browserAPI.storage.local.get(['sentConversations']);
+    const sentConversations = result.sentConversations || {};
+
+    const key = `${personId}:${conversationUrl}`;
+    sentConversations[key] = new Date().toISOString();
+
+    // Keep only last 1000 entries to prevent storage bloat
+    const keys = Object.keys(sentConversations);
+    if (keys.length > 1000) {
+      const sortedKeys = keys.sort((a, b) =>
+        new Date(sentConversations[a]) - new Date(sentConversations[b])
+      );
+      // Remove oldest 100 entries
+      sortedKeys.slice(0, 100).forEach(k => delete sentConversations[k]);
+    }
+
+    await browserAPI.storage.local.set({ sentConversations });
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error marking as sent:', error);
+  }
+}
+
+/**
  * Main handler: Process LinkedIn conversation and send to Affinity
+ * Always returns matches for user selection (never auto-sends)
  */
 async function sendToAffinity(data) {
   const { sender } = data;
 
-  // Step 1: Search for existing person
-  let person = null;
-  let isNewPerson = false;
+  // Step 1: Search for existing persons
+  let existingPersons = [];
 
   if (sender.name) {
-    const existingPersons = await searchPerson(sender.name);
-
-    if (existingPersons.length > 1) {
-      // Multiple matches - return them for user selection
-      console.log('[LinkedIn to Affinity] Found multiple matches:', existingPersons.length);
-      return {
-        success: false,
-        needsSelection: true,
-        matches: existingPersons.slice(0, 10), // Limit to 10 matches
-        conversationData: data
-      };
-    } else if (existingPersons.length === 1) {
-      // Single match - use it directly
-      person = existingPersons[0];
-      console.log('[LinkedIn to Affinity] Found existing person:', person.id);
-    }
+    existingPersons = await searchPerson(sender.name);
+    console.log('[LinkedIn to Affinity] Found matches:', existingPersons.length);
   }
 
-  // Step 2: Create person if not found
-  if (!person) {
-    person = await createPerson(sender);
-    isNewPerson = true;
-    console.log('[LinkedIn to Affinity] Created new person:', person.id);
-  }
-
-  // Step 3: Add conversation as a note
-  const noteContent = formatConversationNote(data);
-  const note = await addNote(person.id, noteContent);
-  console.log('[LinkedIn to Affinity] Added note:', note.id);
-
+  // Always return for user selection (even with 0 or 1 match)
+  // This lets user confirm where to send or create new contact
   return {
-    success: true,
-    personId: person.id,
-    noteId: note.id,
-    isNewPerson: isNewPerson,
-    personName: `${person.first_name} ${person.last_name}`.trim()
+    success: false,
+    needsSelection: true,
+    matches: existingPersons.slice(0, 10), // Limit to 10 matches
+    conversationData: data
   };
 }
 
@@ -195,9 +231,23 @@ async function sendToAffinity(data) {
  * Send conversation to a specific person (after user selection)
  */
 async function sendToAffinityWithPerson(personId, conversationData) {
+  // Check for duplicate
+  const duplicateCheck = await checkDuplicate(conversationData.conversationUrl, personId);
+  if (duplicateCheck.isDuplicate) {
+    return {
+      success: false,
+      isDuplicate: true,
+      sentAt: duplicateCheck.sentAt,
+      error: `This conversation was already sent on ${new Date(duplicateCheck.sentAt).toLocaleDateString()}`
+    };
+  }
+
   const noteContent = formatConversationNote(conversationData);
   const note = await addNote(personId, noteContent);
   console.log('[LinkedIn to Affinity] Added note to selected person:', note.id);
+
+  // Mark as sent
+  await markAsSent(conversationData.conversationUrl, personId);
 
   return {
     success: true,
@@ -218,6 +268,9 @@ async function createPersonAndSend(senderData, conversationData) {
   const note = await addNote(person.id, noteContent);
   console.log('[LinkedIn to Affinity] Added note:', note.id);
 
+  // Mark as sent
+  await markAsSent(conversationData.conversationUrl, person.id);
+
   return {
     success: true,
     personId: person.id,
@@ -230,17 +283,20 @@ async function createPersonAndSend(senderData, conversationData) {
 /**
  * Listen for messages from content script
  */
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('[LinkedIn to Affinity] Received message:', request.action);
+
   if (request.action === 'sendToAffinity') {
     sendToAffinity(request.data)
       .then((result) => {
+        console.log('[LinkedIn to Affinity] sendToAffinity result:', result);
         sendResponse(result);
       })
       .catch((error) => {
         console.error('[LinkedIn to Affinity] Error:', error);
         sendResponse({
           success: false,
-          error: error.message
+          error: error.message || 'Unknown error'
         });
       });
 
@@ -252,13 +308,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Send to a specific person (after user selection from modal)
     sendToAffinityWithPerson(request.personId, request.conversationData)
       .then((result) => {
+        console.log('[LinkedIn to Affinity] sendToAffinityWithPerson result:', result);
         sendResponse(result);
       })
       .catch((error) => {
         console.error('[LinkedIn to Affinity] Error:', error);
         sendResponse({
           success: false,
-          error: error.message
+          error: error.message || 'Unknown error'
         });
       });
 
@@ -269,13 +326,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Create new person and send (when user chooses "Create New" from modal)
     createPersonAndSend(request.senderData, request.conversationData)
       .then((result) => {
+        console.log('[LinkedIn to Affinity] createPersonAndSend result:', result);
         sendResponse(result);
       })
       .catch((error) => {
         console.error('[LinkedIn to Affinity] Error:', error);
         sendResponse({
           success: false,
-          error: error.message
+          error: error.message || 'Unknown error'
         });
       });
 
@@ -286,28 +344,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Test API connection
     affinityRequest('/whoami')
       .then((result) => {
+        console.log('[LinkedIn to Affinity] testConnection result:', result);
         sendResponse({ success: true, user: result });
       })
       .catch((error) => {
-        sendResponse({ success: false, error: error.message });
+        console.error('[LinkedIn to Affinity] testConnection error:', error);
+        sendResponse({ success: false, error: error.message || 'Unknown error' });
       });
 
     return true;
   }
+
+  // Unknown action
+  console.warn('[LinkedIn to Affinity] Unknown action:', request.action);
+  return false;
 });
 
 /**
  * Handle keyboard command
  */
-chrome.commands.onCommand.addListener((command) => {
-  if (command === 'send-to-affinity') {
-    // Send message to active tab's content script
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.sendMessage(tabs[0].id, { action: 'triggerSend' });
-      }
-    });
-  }
-});
+if (browserAPI.commands && browserAPI.commands.onCommand) {
+  browserAPI.commands.onCommand.addListener((command) => {
+    if (command === 'send-to-affinity') {
+      // Send message to active tab's content script
+      browserAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          browserAPI.tabs.sendMessage(tabs[0].id, { action: 'triggerSend' });
+        }
+      });
+    }
+  });
+}
 
 console.log('[LinkedIn to Affinity] Background service worker loaded');

@@ -8,11 +8,50 @@
   if (window.linkedinAffinityInjected) return;
   window.linkedinAffinityInjected = true;
 
+  // Use browser or chrome API (Safari compatibility)
+  const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
   // Configuration
   const BUTTON_CLASS = 'affinity-send-btn';
   const BUTTON_ID = 'affinity-send-btn'; // Keep for backward compatibility
   const MODAL_ID = 'affinity-contact-modal';
   const CHECK_INTERVAL = 1000; // Check for conversation changes
+  const API_TIMEOUT = 30000; // 30 second timeout for API calls
+
+  /**
+   * Send message to background script with timeout
+   */
+  function sendMessage(message) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Request timed out. Please try again.'));
+      }, API_TIMEOUT);
+
+      try {
+        browserAPI.runtime.sendMessage(message, (response) => {
+          clearTimeout(timeoutId);
+
+          // Check for runtime errors
+          if (browserAPI.runtime.lastError) {
+            console.error('[LinkedIn to Affinity] Runtime error:', browserAPI.runtime.lastError);
+            reject(new Error(browserAPI.runtime.lastError.message || 'Extension error'));
+            return;
+          }
+
+          if (response === undefined) {
+            reject(new Error('No response from extension. Please reload the page.'));
+            return;
+          }
+
+          resolve(response);
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('[LinkedIn to Affinity] sendMessage error:', error);
+        reject(error);
+      }
+    });
+  }
 
   // Current conversation state
   let currentConversationUrl = null;
@@ -494,53 +533,70 @@
     const modal = document.createElement('div');
     modal.className = 'affinity-modal';
 
+    const senderName = conversationData.sender?.name || 'Unknown';
+    const hasMatches = matches && matches.length > 0;
+
     // Header
     const header = document.createElement('div');
     header.className = 'affinity-modal-header';
     header.innerHTML = `
-      <h3>Select Contact</h3>
+      <h3>${hasMatches ? 'Select Contact' : 'No Matches Found'}</h3>
       <button class="affinity-modal-close" title="Close">&times;</button>
     `;
 
     // Subtitle
     const subtitle = document.createElement('p');
     subtitle.className = 'affinity-modal-subtitle';
-    subtitle.textContent = `Found ${matches.length} contacts matching "${conversationData.sender.name}"`;
+    if (hasMatches) {
+      subtitle.textContent = `Found ${matches.length} contact${matches.length > 1 ? 's' : ''} matching "${senderName}"`;
+    } else {
+      subtitle.textContent = `No existing contacts found for "${senderName}"`;
+    }
 
     // Contact list
     const list = document.createElement('div');
     list.className = 'affinity-contact-list';
 
-    matches.forEach((person) => {
-      const item = document.createElement('div');
-      item.className = 'affinity-contact-item';
+    if (hasMatches) {
+      matches.forEach((person) => {
+        const item = document.createElement('div');
+        item.className = 'affinity-contact-item';
 
-      const name = `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unknown';
-      const email = person.primary_email || '';
-      const org = person.organization_ids?.length > 0 ? 'Has organization' : '';
+        const name = `${person.first_name || ''} ${person.last_name || ''}`.trim() || 'Unknown';
+        const email = person.primary_email || '';
+        const org = person.organization_ids?.length > 0 ? 'Has organization' : '';
 
-      item.innerHTML = `
-        <div class="affinity-contact-info">
-          <div class="affinity-contact-name">${escapeHtml(name)}</div>
-          ${email ? `<div class="affinity-contact-email">${escapeHtml(email)}</div>` : ''}
-          ${org ? `<div class="affinity-contact-org">${escapeHtml(org)}</div>` : ''}
-        </div>
-        <button class="affinity-contact-select" data-person-id="${person.id}">Select</button>
-      `;
+        item.innerHTML = `
+          <div class="affinity-contact-info">
+            <div class="affinity-contact-name">${escapeHtml(name)}</div>
+            ${email ? `<div class="affinity-contact-email">${escapeHtml(email)}</div>` : ''}
+            ${org ? `<div class="affinity-contact-org">${escapeHtml(org)}</div>` : ''}
+          </div>
+          <button class="affinity-contact-select" data-person-id="${person.id}">Select</button>
+        `;
 
-      item.querySelector('.affinity-contact-select').addEventListener('click', () => {
-        handleContactSelection(person.id, conversationData);
+        item.querySelector('.affinity-contact-select').addEventListener('click', () => {
+          handleContactSelection(person.id, conversationData);
+        });
+
+        list.appendChild(item);
       });
-
-      list.appendChild(item);
-    });
+    } else {
+      // No matches - show helpful message
+      const noMatchesMsg = document.createElement('div');
+      noMatchesMsg.className = 'affinity-no-matches';
+      noMatchesMsg.innerHTML = `
+        <p>Would you like to create a new contact for <strong>${escapeHtml(senderName)}</strong>?</p>
+      `;
+      list.appendChild(noMatchesMsg);
+    }
 
     // Footer with Create New option
     const footer = document.createElement('div');
     footer.className = 'affinity-modal-footer';
     footer.innerHTML = `
       <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
-      <button class="affinity-btn-primary affinity-modal-create-new">Create New Contact</button>
+      <button class="affinity-btn-primary affinity-modal-create-new">${hasMatches ? 'Create New Contact' : 'Create Contact'}</button>
     `;
 
     // Assemble modal
@@ -598,15 +654,51 @@
     if (!button) {
       // Reset all buttons if no specific button provided
       document.querySelectorAll('.' + BUTTON_CLASS).forEach(btn => {
-        btn.classList.remove('affinity-loading', 'affinity-success', 'affinity-error');
+        btn.classList.remove('affinity-loading', 'affinity-success', 'affinity-error', 'affinity-warning');
         const span = btn.querySelector('span');
         if (span) span.textContent = 'Send to Affinity';
       });
       return;
     }
-    button.classList.remove('affinity-loading', 'affinity-success', 'affinity-error');
+    button.classList.remove('affinity-loading', 'affinity-success', 'affinity-error', 'affinity-warning');
     const span = button.querySelector('span');
     if (span) span.textContent = 'Send to Affinity';
+  }
+
+  /**
+   * Show feedback message on the modal
+   */
+  function showModalFeedback(type, message) {
+    const modal = document.getElementById(MODAL_ID);
+    if (!modal) return;
+
+    const modalContent = modal.querySelector('.affinity-modal');
+    if (!modalContent) return;
+
+    // Remove loading state
+    modalContent.classList.remove('affinity-modal-loading');
+
+    // Create or update feedback element
+    let feedback = modal.querySelector('.affinity-modal-feedback');
+    if (!feedback) {
+      feedback = document.createElement('div');
+      feedback.className = 'affinity-modal-feedback';
+      modalContent.appendChild(feedback);
+    }
+
+    feedback.className = `affinity-modal-feedback affinity-feedback-${type}`;
+    feedback.innerHTML = `
+      <span class="affinity-feedback-icon">${type === 'success' ? '✓' : type === 'duplicate' ? '⚠' : '✕'}</span>
+      <span class="affinity-feedback-message">${message}</span>
+    `;
+
+    // Auto-close modal after showing feedback
+    setTimeout(() => {
+      hideContactModal(activeButton);
+      if (activeButton) {
+        resetButton(activeButton);
+      }
+    }, 1500);
   }
 
   /**
@@ -622,31 +714,22 @@
         modal.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
       }
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await sendMessage({
         action: 'sendToAffinityWithPerson',
         personId: personId,
         conversationData: conversationData
       });
 
-      hideContactModal();
-
-      if (response.success && button) {
-        button.classList.add('affinity-success');
-        const span = button.querySelector('span');
-        if (span) span.textContent = 'Sent!';
-        setTimeout(() => resetButton(button), 2000);
-      } else if (!response.success) {
+      if (response.success) {
+        showModalFeedback('success', 'Conversation sent to Affinity!');
+      } else if (response.isDuplicate) {
+        showModalFeedback('duplicate', 'Already sent to this contact');
+      } else {
         throw new Error(response.error || 'Failed to send');
       }
     } catch (error) {
       console.error('[LinkedIn to Affinity] Error:', error);
-      hideContactModal();
-      if (button) {
-        button.classList.add('affinity-error');
-        const span = button.querySelector('span');
-        if (span) span.textContent = error.message || 'Error';
-        setTimeout(() => resetButton(button), 3000);
-      }
+      showModalFeedback('error', error.message || 'Failed to send');
     }
   }
 
@@ -663,7 +746,7 @@
         modal.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
       }
 
-      const response = await chrome.runtime.sendMessage({
+      const response = await sendMessage({
         action: 'createPersonAndSend',
         senderData: conversationData.sender,
         conversationData: conversationData
@@ -942,7 +1025,7 @@
       };
 
       // Send to background script
-      const response = await chrome.runtime.sendMessage({
+      const response = await sendMessage({
         action: 'sendToAffinity',
         data: payload
       });

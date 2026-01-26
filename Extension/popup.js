@@ -1,5 +1,8 @@
 // LinkedIn to Affinity - Popup Script
 
+// Use browser or chrome API (Safari compatibility)
+const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
+
 document.addEventListener('DOMContentLoaded', () => {
   const apiKeyInput = document.getElementById('apiKey');
   const saveBtn = document.getElementById('saveBtn');
@@ -9,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const connectionText = document.getElementById('connectionText');
 
   // Load existing API key
-  chrome.storage.sync.get(['affinityApiKey'], (result) => {
+  browserAPI.storage.sync.get(['affinityApiKey'], (result) => {
     if (result.affinityApiKey) {
       apiKeyInput.value = result.affinityApiKey;
       updateConnectionStatus('checking');
@@ -26,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    chrome.storage.sync.set({ affinityApiKey: apiKey }, () => {
+    browserAPI.storage.sync.set({ affinityApiKey: apiKey }, () => {
       showStatus('API key saved successfully', 'success');
       testConnection();
     });
@@ -42,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Save first, then test
-    chrome.storage.sync.set({ affinityApiKey: apiKey }, () => {
+    browserAPI.storage.sync.set({ affinityApiKey: apiKey }, () => {
       testConnection();
     });
   });
@@ -51,19 +54,19 @@ document.addEventListener('DOMContentLoaded', () => {
     updateConnectionStatus('checking');
     showStatus('Testing connection...', 'info');
 
-    chrome.runtime.sendMessage({ action: 'testConnection' }, (response) => {
-      if (chrome.runtime.lastError) {
-        showStatus('Extension error: ' + chrome.runtime.lastError.message, 'error');
+    browserAPI.runtime.sendMessage({ action: 'testConnection' }, (response) => {
+      if (browserAPI.runtime.lastError) {
+        showStatus('Extension error: ' + browserAPI.runtime.lastError.message, 'error');
         updateConnectionStatus('error');
         return;
       }
 
-      if (response.success) {
+      if (response && response.success) {
         const userName = response.user?.grant?.first_name || 'User';
         showStatus(`Connected as ${userName}`, 'success');
         updateConnectionStatus('connected', `Connected as ${userName}`);
       } else {
-        showStatus('Connection failed: ' + response.error, 'error');
+        showStatus('Connection failed: ' + (response?.error || 'Unknown error'), 'error');
         updateConnectionStatus('error', 'Connection failed');
       }
     });
