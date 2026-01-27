@@ -487,14 +487,23 @@
           message.content = contentEl.textContent?.trim();
         }
 
-        // Get timestamp
+        // Get timestamp - prefer datetime attribute for full date/time
         const timeEl = msgEl.querySelector(
           '.msg-s-message-group__timestamp, ' +
           '.msg-s-message-list-item__timestamp, ' +
           'time'
         );
         if (timeEl) {
-          message.timestamp = timeEl.textContent?.trim() || timeEl.getAttribute('datetime');
+          // Try to get ISO datetime attribute first
+          const isoDateTime = timeEl.getAttribute('datetime');
+          if (isoDateTime) {
+            // Format as readable date and time
+            const date = new Date(isoDateTime);
+            message.timestamp = date.toLocaleString();
+          } else {
+            // Fall back to text content
+            message.timestamp = timeEl.textContent?.trim();
+          }
         }
 
         // Determine if incoming (not from current user)
@@ -778,8 +787,13 @@
 
       if (response.success) {
         // Show success feedback on modal
+        const msgCount = response.newMessageCount;
+        const successMsg = msgCount !== undefined
+          ? (msgCount > 0 ? `Sent ${msgCount} new message(s)!` : 'Contact info sent!')
+          : 'Conversation sent successfully!';
+
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!');
+          showModalFeedback(modalOverlay, 'success', successMsg);
         } else {
           // Fallback to button feedback if modal was closed
           if (button) {

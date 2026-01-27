@@ -164,30 +164,66 @@ async function getNotesForPerson(personId) {
 }
 
 /**
- * Check if a conversation has already been sent to Affinity by checking existing notes
+ * Check if a conversation has already been sent to Affinity and extract existing messages
  */
-async function checkDuplicate(conversationUrl, personId) {
+async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
   try {
     // Get notes for this person from Affinity
     const notes = await getNotesForPerson(personId);
+    const existingMessageContents = new Set();
+    let latestNoteDate = null;
+    let foundConversation = false;
 
-    // Check if any note contains this conversation URL
+    // Check all notes for this conversation URL and extract message contents
     for (const note of notes) {
       if (note.content && note.content.includes(conversationUrl)) {
-        return {
-          isDuplicate: true,
-          sentAt: note.created_at || null,
-          noteId: note.id
-        };
+        foundConversation = true;
+
+        // Track the latest note date
+        if (note.created_at) {
+          const noteDate = new Date(note.created_at);
+          if (!latestNoteDate || noteDate > latestNoteDate) {
+            latestNoteDate = noteDate;
+          }
+        }
+
+        // Extract message contents from the note to avoid re-sending
+        // Messages are formatted as: **Sender** (timestamp):\nContent\n\n
+        const messagePattern = /\*\*[^*]+\*\*[^:]*:\n([^\n]+)/g;
+        let match;
+        while ((match = messagePattern.exec(note.content)) !== null) {
+          const content = match[1].trim();
+          if (content && content !== '_No messages extracted_') {
+            existingMessageContents.add(content);
+          }
+        }
       }
     }
 
-    return { isDuplicate: false };
+    return {
+      isDuplicate: foundConversation,
+      sentAt: latestNoteDate?.toISOString() || null,
+      existingMessageContents: existingMessageContents
+    };
   } catch (error) {
     console.error('[LinkedIn to Affinity] Error checking duplicate:', error);
     // On error, allow sending (fail open)
-    return { isDuplicate: false };
+    return { isDuplicate: false, existingMessageContents: new Set() };
   }
+}
+
+/**
+ * Filter out messages that have already been sent
+ */
+function filterNewMessages(messages, existingMessageContents) {
+  if (!existingMessageContents || existingMessageContents.size === 0) {
+    return messages;
+  }
+
+  return messages.filter(msg => {
+    const content = msg.content?.trim();
+    return content && !existingMessageContents.has(content);
+  });
 }
 
 /**
@@ -221,31 +257,48 @@ async function sendToAffinity(data) {
  */
 async function sendToAffinityWithPerson(personId, conversationData, forceSend = false) {
   // Check for duplicate (unless force sending)
-  if (!forceSend) {
-    const duplicateCheck = await checkDuplicate(conversationData.conversationUrl, personId);
-    if (duplicateCheck.isDuplicate) {
-      const dateStr = duplicateCheck.sentAt
-        ? new Date(duplicateCheck.sentAt).toLocaleDateString()
-        : 'a previous date';
-      return {
-        success: false,
-        isDuplicate: true,
-        sentAt: duplicateCheck.sentAt,
-        personId: personId, // Include for "Send Anyway" option
-        error: `This conversation was already sent on ${dateStr}`
-      };
-    }
+  // Check for existing messages and filter out already-sent ones
+  const duplicateCheck = await checkDuplicateAndGetExistingMessages(conversationData.conversationUrl, personId);
+
+  // Filter to only new messages
+  const originalMessages = conversationData.messages || [];
+  const newMessages = filterNewMessages(originalMessages, duplicateCheck.existingMessageContents);
+
+  // If no new messages and not force sending, show duplicate warning
+  if (!forceSend && newMessages.length === 0 && duplicateCheck.isDuplicate) {
+    const dateStr = duplicateCheck.sentAt
+      ? new Date(duplicateCheck.sentAt).toLocaleDateString()
+      : 'a previous date';
+    return {
+      success: false,
+      isDuplicate: true,
+      sentAt: duplicateCheck.sentAt,
+      personId: personId,
+      error: `All messages were already sent on ${dateStr}`
+    };
   }
 
-  const noteContent = formatConversationNote(conversationData);
+  // If no new messages at all (even for new conversation), don't send empty note
+  if (newMessages.length === 0 && originalMessages.length === 0) {
+    // Still allow sending contact info without messages
+  }
+
+  // Create note with only new messages
+  const dataWithNewMessages = {
+    ...conversationData,
+    messages: newMessages
+  };
+
+  const noteContent = formatConversationNote(dataWithNewMessages);
   const note = await addNote(personId, noteContent);
-  console.log('[LinkedIn to Affinity] Added note to selected person:', note.id);
+  console.log('[LinkedIn to Affinity] Added note with', newMessages.length, 'new message(s)');
 
   return {
     success: true,
     personId: personId,
     noteId: note.id,
-    isNewPerson: false
+    isNewPerson: false,
+    newMessageCount: newMessages.length
   };
 }
 
