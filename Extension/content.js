@@ -971,27 +971,52 @@
   }
 
   /**
-   * Find the best place to insert a button in an element (under the name)
+   * Find the best place to insert a button in an element (under the name and description)
    */
   function findButtonInsertionPoint(element) {
-    // Strategy 1: Find the name element and insert after it
+    // Strategy 1: Find the content container that holds name AND description
+    // Insert after the entire content block, not just the name
+    const contentContainerSelectors = [
+      '.msg-conversation-listitem__content',
+      '.msg-conversation-card__content',
+      '.msg-conversation-listitem__message-info',
+      '[class*="conversation"][class*="content"]',
+      '[class*="message-info"]'
+    ];
+
+    for (const selector of contentContainerSelectors) {
+      const contentContainer = element.querySelector(selector);
+      if (contentContainer) {
+        return { parent: contentContainer.parentElement || element, position: 'after-content', contentElement: contentContainer };
+      }
+    }
+
+    // Strategy 2: Find the name element's parent container (which usually includes description)
     const nameSelectors = [
       '.msg-conversation-listitem__participant-names',
       '.msg-conversation-card__participant-names',
       '[data-anonymize="person-name"]',
       '[class*="participant-name"]',
-      '[class*="profile-name"]',
-      'h3', 'h4'
+      '[class*="profile-name"]'
     ];
 
     for (const selector of nameSelectors) {
       const nameElement = element.querySelector(selector);
       if (nameElement && nameElement.textContent.trim().length > 0) {
-        return { parent: nameElement.parentElement || element, position: 'after-name', nameElement };
+        // Find a parent that contains both name and any description
+        let container = nameElement.parentElement;
+        // Go up one more level if the parent is very small (just wraps the name)
+        if (container && container.children.length <= 2) {
+          const grandparent = container.parentElement;
+          if (grandparent && grandparent !== element) {
+            container = grandparent;
+          }
+        }
+        return { parent: container?.parentElement || element, position: 'after-content', contentElement: container };
       }
     }
 
-    // Strategy 2: Look for existing actions area
+    // Strategy 3: Look for existing actions area
     const actionsSelectors = [
       '[class*="actions"]',
       '[class*="controls"]',
@@ -1006,12 +1031,48 @@
       }
     }
 
-    // Strategy 3: Add to element itself with block positioning
+    // Strategy 4: Add to element itself with block positioning
     return { parent: element, position: 'append-block' };
   }
 
   /**
-   * Inject buttons into LinkedIn's UI - both conversation list and active conversation
+   * Check if a conversation item is currently selected/active
+   */
+  function isConversationSelected(item) {
+    // Check for LinkedIn's active/selected classes
+    if (item.classList.contains('active') ||
+        item.classList.contains('selected') ||
+        item.getAttribute('aria-selected') === 'true' ||
+        item.getAttribute('aria-current') === 'true') {
+      return true;
+    }
+
+    // Check for active class on child elements or parent
+    if (item.querySelector('.active, .selected, [aria-selected="true"]')) {
+      return true;
+    }
+
+    // Check for LinkedIn's specific active conversation class patterns
+    if (item.className.includes('active') || item.className.includes('selected')) {
+      return true;
+    }
+
+    // Check parent element for active state (LinkedIn sometimes marks parent)
+    const parent = item.parentElement;
+    if (parent && (parent.className.includes('active') || parent.className.includes('selected'))) {
+      return true;
+    }
+
+    // Check for focus or current states
+    if (item.matches(':focus-within') || item.getAttribute('tabindex') === '0') {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Inject buttons into LinkedIn's UI - only on selected conversation
    */
   function injectButtons() {
     // Use adaptive scanner to find conversation items
@@ -1033,8 +1094,17 @@
     let injectedCount = 0;
 
     conversationItems.forEach((item) => {
-      // Skip if already has a button
-      if (item.querySelector('.' + BUTTON_CLASS)) return;
+      const existingButton = item.querySelector('.' + BUTTON_CLASS);
+      const isSelected = isConversationSelected(item);
+
+      // Remove button from non-selected items
+      if (!isSelected && existingButton) {
+        existingButton.remove();
+        return;
+      }
+
+      // Skip if not selected or already has a button
+      if (!isSelected || existingButton) return;
 
       // Verify this still looks like a conversation item
       if (!DOMScanner.isConversationItem(item) && !item.className.includes('msg-conversation')) {
@@ -1045,19 +1115,19 @@
       const insertionPoint = findButtonInsertionPoint(item);
 
       try {
-        if (insertionPoint.position === 'after-name' && insertionPoint.nameElement && insertionPoint.nameElement.parentNode) {
-          // Insert button after the name element
+        if (insertionPoint.position === 'after-content' && insertionPoint.contentElement && insertionPoint.contentElement.parentNode) {
+          // Insert button after the content container (name + description)
           button.style.display = 'block';
-          button.style.marginTop = '6px';
+          button.style.marginTop = '8px';
           button.style.marginLeft = '0';
-          insertionPoint.nameElement.parentNode.insertBefore(button, insertionPoint.nameElement.nextSibling);
+          insertionPoint.contentElement.parentNode.insertBefore(button, insertionPoint.contentElement.nextSibling);
         } else if (insertionPoint.position === 'prepend' && insertionPoint.parent) {
           insertionPoint.parent.insertBefore(button, insertionPoint.parent.firstChild);
         } else {
           // Fallback: append to item with relative positioning
           item.style.position = 'relative';
           button.style.display = 'block';
-          button.style.marginTop = '6px';
+          button.style.marginTop = '8px';
           item.appendChild(button);
         }
         injectedCount++;

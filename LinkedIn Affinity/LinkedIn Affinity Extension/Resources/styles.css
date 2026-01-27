@@ -1,41 +1,42 @@
 /* LinkedIn to Affinity - Injected Styles */
+/* Apple-inspired minimal design */
 
 .affinity-send-btn,
 #affinity-send-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  margin-right: 8px;
+  gap: 4px;
+  padding: 4px 10px;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
-  color: #ffffff;
-  background: linear-gradient(135deg, #0a66c2 0%, #004182 100%);
-  border: none;
-  border-radius: 16px;
+  letter-spacing: -0.01em;
+  color: #007aff;
+  background: transparent;
+  border: 1px solid #007aff;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.15s ease;
 }
 
 .affinity-send-btn:hover,
 #affinity-send-btn:hover {
-  background: linear-gradient(135deg, #004182 0%, #003366 100%);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  transform: translateY(-1px);
+  background: #007aff;
+  color: #ffffff;
 }
 
 .affinity-send-btn:active,
 #affinity-send-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  background: #0056b3;
+  border-color: #0056b3;
+  color: #ffffff;
+  transform: scale(0.97);
 }
 
 .affinity-send-btn svg,
 #affinity-send-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
 }
 
@@ -47,7 +48,9 @@
 /* Loading state */
 .affinity-send-btn.affinity-loading,
 #affinity-send-btn.affinity-loading {
-  background: linear-gradient(135deg, #86868b 0%, #6e6e73 100%);
+  background: transparent;
+  border-color: #8e8e93;
+  color: #8e8e93;
   cursor: wait;
   pointer-events: none;
 }
@@ -69,19 +72,25 @@
 /* Success state */
 .affinity-send-btn.affinity-success,
 #affinity-send-btn.affinity-success {
-  background: linear-gradient(135deg, #34c759 0%, #28a745 100%);
+  background: #34c759;
+  border-color: #34c759;
+  color: #ffffff;
 }
 
 /* Error state */
 .affinity-send-btn.affinity-error,
 #affinity-send-btn.affinity-error {
-  background: linear-gradient(135deg, #ff3b30 0%, #dc3545 100%);
+  background: #ff3b30;
+  border-color: #ff3b30;
+  color: #ffffff;
 }
 
 /* Warning state (for duplicates) */
 .affinity-send-btn.affinity-warning,
 #affinity-send-btn.affinity-warning {
-  background: linear-gradient(135deg, #ff9500 0%, #ff7b00 100%);
+  background: #ff9500;
+  border-color: #ff9500;
+  color: #ffffff;
 }
 
 /* Compact button style for conversation list */
