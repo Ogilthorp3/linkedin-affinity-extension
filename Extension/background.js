@@ -419,3 +419,21 @@ if (browserAPI.commands && browserAPI.commands.onCommand) {
 }
 
 console.log('[LinkedIn to Affinity] Background service worker loaded');
+
+// Export for testing (Node.js/Jest environment)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    formatConversationNote,
+    filterNewMessages,
+    getApiKey,
+    affinityRequest,
+    searchPerson,
+    createPerson,
+    addNote,
+    getNotesForPerson,
+    checkDuplicateAndGetExistingMessages,
+    sendToAffinity,
+    sendToAffinityWithPerson,
+    createPersonAndSend
+  };
+}

@@ -1,12 +1,186 @@
 // LinkedIn to Affinity - Content Script
 // Injected into LinkedIn messaging pages
 
+// ============================================================
+// TESTABLE HELPER FUNCTIONS
+// These are defined outside the IIFE for testing purposes
+// ============================================================
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function _escapeHtml(text) {
+  if (typeof document !== 'undefined') {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  // Fallback for Node.js environment
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Check if a conversation item is currently selected/active
+ */
+function _isConversationSelected(item) {
+  if (!item) return false;
+
+  // Check for LinkedIn's active/selected classes
+  if (item.classList.contains('active') ||
+      item.classList.contains('selected') ||
+      item.getAttribute('aria-selected') === 'true' ||
+      item.getAttribute('aria-current') === 'true') {
+    return true;
+  }
+
+  // Check for active class on child elements or parent
+  if (item.querySelector('.active, .selected, [aria-selected="true"]')) {
+    return true;
+  }
+
+  // Check for LinkedIn's specific active conversation class patterns
+  if (item.className.includes('active') || item.className.includes('selected')) {
+    return true;
+  }
+
+  // Check parent element for active state (LinkedIn sometimes marks parent)
+  const parent = item.parentElement;
+  if (parent && (parent.className.includes('active') || parent.className.includes('selected'))) {
+    return true;
+  }
+
+  // Check for focus or current states
+  if (item.matches && item.matches(':focus-within')) {
+    return true;
+  }
+
+  if (item.getAttribute('tabindex') === '0') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Get all text nodes from an element (first level deep)
+ */
+function _getTextNodes(element) {
+  if (!element || typeof document === 'undefined') return [];
+
+  const texts = [];
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: (node) => {
+        if (node.textContent.trim().length > 0) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return NodeFilter.FILTER_REJECT;
+      }
+    }
+  );
+
+  let node;
+  let count = 0;
+  while ((node = walker.nextNode()) && count < 20) {
+    texts.push(node.textContent);
+    count++;
+  }
+  return texts;
+}
+
+/**
+ * Extract name from an element using multiple strategies
+ */
+function _extractName(element) {
+  if (!element) return null;
+
+  // Strategy 1: Known name selectors
+  const nameSelectors = [
+    '[class*="participant-name"]',
+    '[class*="profile-name"]',
+    '[data-anonymize="person-name"]',
+    'h2', 'h3', 'h4',
+    '[class*="title"]:not([class*="subtitle"])',
+    'strong', 'b'
+  ];
+
+  for (const selector of nameSelectors) {
+    const nameEl = element.querySelector(selector);
+    if (nameEl) {
+      const text = nameEl.textContent.trim();
+      // Validate it looks like a name (1-5 words, starts with capital)
+      if (text && /^[A-Z][a-zA-Z\s\-\.\']{1,50}$/.test(text)) {
+        return text;
+      }
+    }
+  }
+
+  // Strategy 2: Find text that looks like a name
+  const texts = _getTextNodes(element);
+  for (const text of texts) {
+    const trimmed = text.trim();
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(trimmed) && trimmed.length < 50) {
+      // Exclude common non-name patterns
+      if (!/^(You|Me|Today|Yesterday|New|Message|Chat|Conversation|Messaging|Focused|Other|Inbox)/i.test(trimmed)) {
+        return trimmed;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Check if an element looks like a conversation item
+ * Uses heuristics rather than class names
+ */
+function _isConversationItem(element) {
+  if (!element || element.nodeType !== 1) return false;
+
+  // Must have a profile image or avatar
+  const hasImage = element.querySelector('img[src*="profile"], img[src*="media.licdn"], img[class*="presence"], img[class*="photo"], img[class*="avatar"]') !== null;
+
+  // Must have text content that looks like a name (2-4 words, capitalized)
+  const textNodes = _getTextNodes(element);
+  const hasName = textNodes.some(text => {
+    const words = text.trim().split(/\s+/);
+    return words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(text.trim());
+  });
+
+  // Should be a list item or have list-item-like behavior
+  const isListLike = element.tagName === 'LI' ||
+                     element.getAttribute('role') === 'listitem' ||
+                     element.getAttribute('role') === 'option' ||
+                     element.parentElement?.tagName === 'UL' ||
+                     element.parentElement?.tagName === 'OL';
+
+  // Should be clickable or contain clickable elements
+  const isClickable = element.tagName === 'A' ||
+                      element.querySelector('a') !== null ||
+                      element.getAttribute('role') === 'button' ||
+                      element.style.cursor === 'pointer';
+
+  return (hasImage || hasName) && (isListLike || isClickable);
+}
+
+// ============================================================
+// MAIN IIFE
+// ============================================================
+
 (function() {
   'use strict';
 
   // Avoid multiple injections
-  if (window.linkedinAffinityInjected) return;
-  window.linkedinAffinityInjected = true;
+  if (typeof window !== 'undefined' && window.linkedinAffinityInjected) return;
+  if (typeof window !== 'undefined') window.linkedinAffinityInjected = true;
 
   // Use browser or chrome API (Safari compatibility)
   const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
@@ -88,63 +262,17 @@
     },
 
     /**
-     * Check if an element looks like a conversation item
-     * Uses heuristics rather than class names
+     * Check if an element looks like a conversation item (wrapper for testable function)
      */
     isConversationItem(element) {
-      if (!element || element.nodeType !== 1) return false;
-
-      // Must have a profile image or avatar
-      const hasImage = element.querySelector('img[src*="profile"], img[src*="media.licdn"], img[class*="presence"], img[class*="photo"], img[class*="avatar"]') !== null;
-
-      // Must have text content that looks like a name (2-4 words, capitalized)
-      const textNodes = this.getTextNodes(element);
-      const hasName = textNodes.some(text => {
-        const words = text.trim().split(/\s+/);
-        return words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(text.trim());
-      });
-
-      // Should be a list item or have list-item-like behavior
-      const isListLike = element.tagName === 'LI' ||
-                         element.getAttribute('role') === 'listitem' ||
-                         element.getAttribute('role') === 'option' ||
-                         element.parentElement?.tagName === 'UL' ||
-                         element.parentElement?.tagName === 'OL';
-
-      // Should be clickable or contain clickable elements
-      const isClickable = element.tagName === 'A' ||
-                          element.querySelector('a') !== null ||
-                          element.getAttribute('role') === 'button' ||
-                          element.style.cursor === 'pointer';
-
-      return (hasImage || hasName) && (isListLike || isClickable);
+      return _isConversationItem(element);
     },
 
     /**
-     * Get all text nodes from an element (first level deep)
+     * Get all text nodes from an element (wrapper for testable function)
      */
     getTextNodes(element) {
-      const texts = [];
-      const walker = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_TEXT,
-        {
-          acceptNode: (node) => {
-            if (node.textContent.trim().length > 0) {
-              return NodeFilter.FILTER_ACCEPT;
-            }
-            return NodeFilter.FILTER_REJECT;
-          }
-        }
-      );
-
-      let node;
-      let count = 0;
-      while ((node = walker.nextNode()) && count < 20) {
-        texts.push(node.textContent);
-        count++;
-      }
-      return texts;
+      return _getTextNodes(element);
     },
 
     /**
@@ -276,46 +404,10 @@
     },
 
     /**
-     * Extract name from an element using multiple strategies
+     * Extract name from an element (wrapper for testable function)
      */
     extractName(element) {
-      if (!element) return null;
-
-      // Strategy 1: Known name selectors
-      const nameSelectors = [
-        '[class*="participant-name"]',
-        '[class*="profile-name"]',
-        '[data-anonymize="person-name"]',
-        'h2', 'h3', 'h4',
-        '[class*="title"]:not([class*="subtitle"])',
-        'strong', 'b'
-      ];
-
-      for (const selector of nameSelectors) {
-        const nameEl = element.querySelector(selector);
-        if (nameEl) {
-          const text = nameEl.textContent.trim();
-          // Validate it looks like a name (1-5 words, starts with capital)
-          if (text && /^[A-Z][a-zA-Z\s\-\.\']{1,50}$/.test(text)) {
-            return text;
-          }
-        }
-      }
-
-      // Strategy 2: Find text that looks like a name
-      const texts = this.getTextNodes(element);
-      for (const text of texts) {
-        const trimmed = text.trim();
-        const words = trimmed.split(/\s+/);
-        if (words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(trimmed) && trimmed.length < 50) {
-          // Exclude common non-name patterns
-          if (!/^(You|Me|Today|Yesterday|New|Message|Chat|Conversation|Messaging|Focused|Other|Inbox)/i.test(trimmed)) {
-            return trimmed;
-          }
-        }
-      }
-
-      return null;
+      return _extractName(element);
     },
 
     /**
@@ -886,12 +978,10 @@
   }
 
   /**
-   * Escape HTML to prevent XSS
+   * Escape HTML to prevent XSS (wrapper for testable function)
    */
   function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return _escapeHtml(text);
   }
 
   /**
@@ -1036,39 +1126,10 @@
   }
 
   /**
-   * Check if a conversation item is currently selected/active
+   * Check if a conversation item is currently selected/active (wrapper for testable function)
    */
   function isConversationSelected(item) {
-    // Check for LinkedIn's active/selected classes
-    if (item.classList.contains('active') ||
-        item.classList.contains('selected') ||
-        item.getAttribute('aria-selected') === 'true' ||
-        item.getAttribute('aria-current') === 'true') {
-      return true;
-    }
-
-    // Check for active class on child elements or parent
-    if (item.querySelector('.active, .selected, [aria-selected="true"]')) {
-      return true;
-    }
-
-    // Check for LinkedIn's specific active conversation class patterns
-    if (item.className.includes('active') || item.className.includes('selected')) {
-      return true;
-    }
-
-    // Check parent element for active state (LinkedIn sometimes marks parent)
-    const parent = item.parentElement;
-    if (parent && (parent.className.includes('active') || parent.className.includes('selected'))) {
-      return true;
-    }
-
-    // Check for focus or current states
-    if (item.matches(':focus-within') || item.getAttribute('tabindex') === '0') {
-      return true;
-    }
-
-    return false;
+    return _isConversationSelected(item);
   }
 
   /**
@@ -1405,3 +1466,14 @@
   init();
 
 })();
+
+// Export testable functions for testing (Node.js/Jest environment)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    escapeHtml: _escapeHtml,
+    isConversationSelected: _isConversationSelected,
+    extractName: _extractName,
+    getTextNodes: _getTextNodes,
+    isConversationItem: _isConversationItem
+  };
+}
