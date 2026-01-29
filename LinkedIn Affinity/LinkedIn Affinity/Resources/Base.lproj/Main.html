@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
 
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 
@@ -10,10 +10,45 @@
     <script src="../Script.js" defer></script>
 </head>
 <body>
-    <img src="../Icon.png" width="128" height="128" alt="LinkedIn Affinity Icon">
-    <p class="state-unknown">You can turn on LinkedIn Affinity’s extension in Safari Extensions preferences.</p>
-    <p class="state-on">LinkedIn Affinity’s extension is currently on. You can turn it off in Safari Extensions preferences.</p>
-    <p class="state-off">LinkedIn Affinity’s extension is currently off. You can turn it on in Safari Extensions preferences.</p>
+    <div class="logo-container">
+        <svg class="logo" viewBox="0 0 120 120" width="128" height="128">
+            <!-- Background rounded square -->
+            <defs>
+                <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#1a73e8"/>
+                    <stop offset="100%" style="stop-color:#0d47a1"/>
+                </linearGradient>
+                <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="rgba(0,0,0,0.25)"/>
+                </filter>
+            </defs>
+
+            <!-- Rounded rectangle background -->
+            <rect class="logo-bg" x="4" y="4" width="112" height="112" rx="24" ry="24" fill="url(#bgGradient)" filter="url(#shadow)"/>
+
+            <!-- T shape - top bar -->
+            <path class="logo-t-top" d="M20 24 L20 38 L100 38 L88 24 Z" fill="white"/>
+
+            <!-- T shape - vertical stem with arrow -->
+            <path class="logo-t-stem" d="M48 38 L48 72 L38 72 L60 96 L82 72 L72 72 L72 38 Z" fill="white"/>
+        </svg>
+
+        <!-- Animated particles -->
+        <div class="particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+    </div>
+
+    <h1 class="app-title">LinkedIn Affinity</h1>
+
+    <p class="state-unknown">You can turn on LinkedIn Affinity's extension in Safari Extensions preferences.</p>
+    <p class="state-on">LinkedIn Affinity's extension is currently on. You can turn it off in Safari Extensions preferences.</p>
+    <p class="state-off">LinkedIn Affinity's extension is currently off. You can turn it on in Safari Extensions preferences.</p>
     <button class="open-preferences">Quit and Open Safari Extensions Preferences…</button>
 </body>
 </html>
