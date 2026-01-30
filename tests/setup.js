@@ -36,16 +36,19 @@ beforeEach(() => {
   global.browser.storage.sync._clear();
   global.browser.storage.local._clear();
 
-  // Reset fetch mock
+  // Reset fetch mock - return empty array for field endpoints
   global.fetch.mockClear();
-  global.fetch.mockImplementation(() =>
+  global.fetch.mockImplementation((url) =>
     Promise.resolve({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({}),
+      json: () => Promise.resolve(url?.includes('/fields') ? [] : {}),
       text: () => Promise.resolve('')
     })
   );
+
+  // Reset module caches (for fieldsCache, linkedinFieldCache, etc.)
+  jest.resetModules();
 });
 
 // Helper to set up API key for tests that need it

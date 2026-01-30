@@ -1,4 +1,5 @@
 module.exports = {
+  // Default to jsdom for unit tests
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   testMatch: ['**/tests/**/*.test.js'],
@@ -8,5 +9,21 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
-  verbose: true
+  verbose: true,
+
+  // Use Node environment for integration tests (they make real HTTP calls)
+  projects: [
+    {
+      displayName: 'unit',
+      testEnvironment: 'jsdom',
+      setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+      testMatch: ['**/tests/*.test.js'],
+    },
+    {
+      displayName: 'integration',
+      testEnvironment: 'node',
+      testMatch: ['**/tests/integration/**/*.test.js'],
+      // No setup file for integration tests - they use real APIs
+    }
+  ]
 };

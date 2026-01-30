@@ -411,19 +411,58 @@ function _isConversationItem(element) {
     },
 
     /**
-     * Extract profile URL from an element
+     * Extract profile URL from an element or page
      */
     extractProfileUrl(element) {
-      if (!element) return null;
+      // Strategy 1: Look within the provided element
+      if (element) {
+        const link = element.querySelector('a[href*="/in/"]');
+        if (link) {
+          return link.href.split('?')[0];
+        }
 
-      const link = element.querySelector('a[href*="/in/"]');
-      if (link) {
-        return link.href.split('?')[0];
+        // Check if element itself is a link
+        if (element.tagName === 'A' && element.href?.includes('/in/')) {
+          return element.href.split('?')[0];
+        }
       }
 
-      // Check if element itself is a link
-      if (element.tagName === 'A' && element.href?.includes('/in/')) {
-        return element.href.split('?')[0];
+      // Strategy 2: Look for profile link in message thread header area
+      const headerSelectors = [
+        '.msg-thread__link-to-profile',
+        '.msg-overlay-bubble-header a[href*="/in/"]',
+        '.msg-thread a[href*="/in/"]',
+        '.msg-s-message-list-container a[href*="/in/"]',
+        '.msg-entity-lockup a[href*="/in/"]',
+        '.msg-title-bar a[href*="/in/"]',
+        // Profile card in conversation
+        '.pv-text-details__left-panel a[href*="/in/"]',
+        '.msg-thread__content-header a[href*="/in/"]'
+      ];
+
+      for (const selector of headerSelectors) {
+        const link = document.querySelector(selector);
+        if (link && link.href?.includes('/in/')) {
+          return link.href.split('?')[0];
+        }
+      }
+
+      // Strategy 3: Find any profile link in the conversation pane (not sidebar)
+      const conversationPane = document.querySelector('.msg-thread, .msg-overlay-conversation-bubble, .msg-s-message-list-container');
+      if (conversationPane) {
+        const links = conversationPane.querySelectorAll('a[href*="/in/"]');
+        for (const link of links) {
+          // Exclude links that are clearly message content (in message body)
+          if (!link.closest('.msg-s-event-listitem__body, .msg-s-message-body')) {
+            return link.href.split('?')[0];
+          }
+        }
+      }
+
+      // Strategy 4: Check for profile image link (often wraps the avatar)
+      const avatarLink = document.querySelector('.msg-thread img[src*="media.licdn"]')?.closest('a[href*="/in/"]');
+      if (avatarLink) {
+        return avatarLink.href.split('?')[0];
       }
 
       return null;
@@ -468,6 +507,64 @@ function _isConversationItem(element) {
   };
 
   /**
+   * Parse company name from LinkedIn headline
+   * Handles formats like: "CEO at Company", "Engineer | Company", "Founder @ Company"
+   */
+  function parseCompanyFromHeadline(headline) {
+    if (!headline) return null;
+
+    // Common patterns for company separation
+    const patterns = [
+      /(?:at|@)\s+(.+?)(?:\s*[|·•]|$)/i,           // "Role at Company" or "Role @ Company"
+      /(?:^|\s)[|·•]\s*(.+?)(?:\s*[|·•]|$)/,       // "Role | Company"
+      /,\s*(.+?)(?:\s*[|·•]|$)/,                    // "Role, Company"
+      /(?:^|\s)[-–—]\s*(.+?)(?:\s*[|·•]|$)/        // "Role - Company"
+    ];
+
+    for (const pattern of patterns) {
+      const match = headline.match(pattern);
+      if (match && match[1]) {
+        const company = match[1].trim();
+        // Filter out common non-company text
+        if (company.length > 1 &&
+            company.length < 100 &&
+            !/^(and|the|a|an|in|for|with|to)$/i.test(company) &&
+            !/looking for|open to|seeking|hiring/i.test(company)) {
+          return company;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse job title from LinkedIn headline
+   */
+  function parseTitleFromHeadline(headline) {
+    if (!headline) return null;
+
+    // Get the part before common separators
+    const separators = [' at ', ' @ ', ' | ', ' · ', ' • ', ' - ', ' – ', ' — ', ', '];
+    let title = headline;
+
+    for (const sep of separators) {
+      const idx = headline.toLowerCase().indexOf(sep.toLowerCase());
+      if (idx > 0) {
+        title = headline.substring(0, idx).trim();
+        break;
+      }
+    }
+
+    // Clean up and validate
+    if (title && title.length > 1 && title.length < 100) {
+      return title;
+    }
+
+    return null;
+  }
+
+  /**
    * Extract sender information from the conversation header
    */
   function extractSenderInfo() {
@@ -476,8 +573,11 @@ function _isConversationItem(element) {
       firstName: null,
       lastName: null,
       headline: null,
+      title: null,
+      company: null,
       linkedinUrl: null,
-      profileImageUrl: null
+      profileImageUrl: null,
+      location: null
     };
 
     try {
@@ -489,16 +589,48 @@ function _isConversationItem(element) {
         info.name = DOMScanner.extractName(header);
         info.linkedinUrl = DOMScanner.extractProfileUrl(header);
 
+        // Debug: log what we found
+
         // Get profile image
         const profileImg = header.querySelector('img[src*="profile"], img[src*="media.licdn"], img[class*="presence"], img[class*="photo"]');
         if (profileImg) {
           info.profileImageUrl = profileImg.src;
         }
 
-        // Try to get headline/subtitle
+        // Try to get headline/subtitle from header
         const subtitleEl = header.querySelector('[class*="subtitle"], [class*="headline"], .t-12, .t-14');
         if (subtitleEl) {
           info.headline = subtitleEl.textContent?.trim();
+        }
+      }
+
+      // Fallback: Try broader headline selectors in the conversation pane
+      if (!info.headline) {
+        const headlineSelectors = [
+          // Message thread header selectors
+          '.msg-thread .msg-entity-lockup__entity-subtitle',
+          '.msg-overlay-bubble-header .msg-entity-lockup__entity-subtitle',
+          '.msg-s-message-list-container .msg-entity-lockup__entity-subtitle',
+          '.msg-title-bar .msg-entity-lockup__entity-subtitle',
+          // Generic subtitle/occupation selectors
+          '.msg-thread [class*="occupation"]',
+          '.msg-thread [class*="subtitle"]',
+          '.msg-thread .t-12.t-black--light',
+          '.msg-thread .t-14.t-black--light',
+          // Profile mini card
+          '.msg-thread .pv-text-details__left-panel .text-body-small'
+        ];
+
+        for (const selector of headlineSelectors) {
+          const el = document.querySelector(selector);
+          if (el) {
+            const text = el.textContent?.trim();
+            // Make sure it's not empty or just whitespace
+            if (text && text.length > 2 && text.length < 200) {
+              info.headline = text;
+              break;
+            }
+          }
         }
       }
 
@@ -518,14 +650,8 @@ function _isConversationItem(element) {
       }
 
       if (!info.linkedinUrl) {
-        const profileLink = document.querySelector(
-          '.msg-thread__link-to-profile, ' +
-          '.msg-conversation-card__profile-link, ' +
-          'a[href*="/in/"]'
-        );
-        if (profileLink) {
-          info.linkedinUrl = profileLink.href?.split('?')[0];
-        }
+        // Use the comprehensive extractProfileUrl which tries multiple strategies
+        info.linkedinUrl = DOMScanner.extractProfileUrl(null);
       }
 
       // Parse name into first/last
@@ -533,6 +659,26 @@ function _isConversationItem(element) {
         const nameParts = info.name.split(' ');
         info.firstName = nameParts[0];
         info.lastName = nameParts.slice(1).join(' ');
+      }
+
+      // Parse company and title from headline
+      if (info.headline) {
+        info.company = parseCompanyFromHeadline(info.headline);
+        info.title = parseTitleFromHeadline(info.headline);
+      }
+
+      // Try to extract location (often shown in conversation header or profile)
+      const locationEl = document.querySelector(
+        '.msg-thread [class*="location"], ' +
+        '.msg-overlay-bubble-header [class*="location"], ' +
+        '.t-black--light.t-12'
+      );
+      if (locationEl) {
+        const locText = locationEl.textContent?.trim();
+        // Make sure it's not the headline we already captured
+        if (locText && locText !== info.headline && locText.length < 100) {
+          info.location = locText;
+        }
       }
 
     } catch (error) {
@@ -681,7 +827,8 @@ function _isConversationItem(element) {
         `;
 
         item.querySelector('.affinity-contact-select').addEventListener('click', () => {
-          handleContactSelection(person.id, conversationData);
+          const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
+          handleContactSelection(person.id, conversationData, quickNote);
         });
 
         list.appendChild(item);
@@ -696,6 +843,19 @@ function _isConversationItem(element) {
       list.appendChild(noMatchesMsg);
     }
 
+    // Quick notes input
+    const notesSection = document.createElement('div');
+    notesSection.className = 'affinity-notes-section';
+    notesSection.innerHTML = `
+      <label class="affinity-notes-label" for="affinity-quick-note">Add a note (optional)</label>
+      <textarea
+        id="affinity-quick-note"
+        class="affinity-notes-input"
+        placeholder="e.g., Met at Web Summit, Referred by John, Series A looking for $5M..."
+        rows="2"
+      ></textarea>
+    `;
+
     // Footer with Create New option
     const footer = document.createElement('div');
     footer.className = 'affinity-modal-footer';
@@ -708,6 +868,7 @@ function _isConversationItem(element) {
     modal.appendChild(header);
     modal.appendChild(subtitle);
     modal.appendChild(list);
+    modal.appendChild(notesSection);
     modal.appendChild(footer);
     overlay.appendChild(modal);
 
@@ -715,7 +876,8 @@ function _isConversationItem(element) {
     header.querySelector('.affinity-modal-close').addEventListener('click', () => hideContactModal(activeButton));
     footer.querySelector('.affinity-modal-cancel').addEventListener('click', () => hideContactModal(activeButton));
     footer.querySelector('.affinity-modal-create-new').addEventListener('click', () => {
-      handleCreateNewContact(conversationData);
+      const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
+      handleCreateNewContact(conversationData, quickNote);
     });
 
     // Close on overlay click
@@ -763,12 +925,14 @@ function _isConversationItem(element) {
     // Remove loading state
     modal.classList.remove('affinity-modal-loading');
 
-    // Hide contact list
+    // Hide contact list and notes section
     const list = modal.querySelector('.affinity-contact-list');
+    const notesSection = modal.querySelector('.affinity-notes-section');
     const footer = modal.querySelector('.affinity-modal-footer');
     const subtitle = modal.querySelector('.affinity-modal-subtitle');
 
     if (list) list.style.display = 'none';
+    if (notesSection) notesSection.style.display = 'none';
 
     // Update header
     const header = modal.querySelector('.affinity-modal-header h3');
@@ -861,7 +1025,7 @@ function _isConversationItem(element) {
   /**
    * Handle contact selection from modal
    */
-  async function handleContactSelection(personId, conversationData) {
+  async function handleContactSelection(personId, conversationData, quickNote = '') {
     const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
@@ -871,10 +1035,16 @@ function _isConversationItem(element) {
         modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
       }
 
+      // Add quick note to conversation data
+      const dataWithNote = {
+        ...conversationData,
+        quickNote: quickNote
+      };
+
       const response = await sendMessage({
         action: 'sendToAffinityWithPerson',
         personId: personId,
-        conversationData: conversationData
+        conversationData: dataWithNote
       });
 
       if (response.success) {
@@ -931,7 +1101,7 @@ function _isConversationItem(element) {
   /**
    * Handle creating a new contact from modal
    */
-  async function handleCreateNewContact(conversationData) {
+  async function handleCreateNewContact(conversationData, quickNote = '') {
     const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
@@ -941,10 +1111,16 @@ function _isConversationItem(element) {
         modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
       }
 
+      // Add quick note to conversation data
+      const dataWithNote = {
+        ...conversationData,
+        quickNote: quickNote
+      };
+
       const response = await sendMessage({
         action: 'createPersonAndSend',
         senderData: conversationData.sender,
-        conversationData: conversationData
+        conversationData: dataWithNote
       });
 
       if (response.success) {
@@ -1275,16 +1451,33 @@ function _isConversationItem(element) {
         senderInfo = extractSenderInfo();
       }
 
-      // Only extract messages if the clicked contact matches the active conversation
-      let messages = [];
+      // Get additional info (headline, company, etc.) from the active conversation header
+      // The conversation list item doesn't have all the details, but the header does
       const activeConversationInfo = extractSenderInfo();
 
+      // Merge headline and other details from active conversation if it's the same person
       if (activeConversationInfo?.name && senderInfo?.name) {
-        // Normalize names for comparison (lowercase, trim, remove extra spaces)
         const clickedName = senderInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
         const activeName = activeConversationInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
 
-        // Check if names match or if one contains the other (for partial matches)
+        if (clickedName === activeName || clickedName.includes(activeName) || activeName.includes(clickedName)) {
+          // Same person - merge the extra details
+          senderInfo.headline = activeConversationInfo.headline || senderInfo.headline;
+          senderInfo.title = activeConversationInfo.title || senderInfo.title;
+          senderInfo.company = activeConversationInfo.company || senderInfo.company;
+          senderInfo.location = activeConversationInfo.location || senderInfo.location;
+          // Also prefer the linkedinUrl from header if available (more reliable)
+          senderInfo.linkedinUrl = activeConversationInfo.linkedinUrl || senderInfo.linkedinUrl;
+        }
+      }
+
+      // Only extract messages if the clicked contact matches the active conversation
+      let messages = [];
+      // Reuse activeConversationInfo from above
+      if (activeConversationInfo?.name && senderInfo?.name) {
+        const clickedName = senderInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
+        const activeName = activeConversationInfo.name.toLowerCase().trim().replace(/\s+/g, ' ');
+
         if (clickedName === activeName || clickedName.includes(activeName) || activeName.includes(clickedName)) {
           // Names match - this is the active conversation, extract messages
           messages = extractMessages();
