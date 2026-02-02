@@ -455,6 +455,13 @@ async function findPersonFields() {
        f.name?.toLowerCase() === 'how we met') &&
       f.value_type === 6 // Text type only
     ),
+    // Current Organization - value_type 6 is Organization reference in Affinity
+    currentOrganization: personFields.find(f =>
+      (f.name?.toLowerCase() === 'current organization' ||
+       f.name?.toLowerCase() === 'current company' ||
+       f.name?.toLowerCase() === 'company') &&
+      f.value_type === 6 // Organization type
+    ),
     // For all available fields debugging
     _all: personFields
   };
@@ -466,6 +473,7 @@ async function findPersonFields() {
     location: fieldsCache.location?.name,
     bio: fieldsCache.bio?.name,
     source: fieldsCache.source?.name,
+    currentOrganization: fieldsCache.currentOrganization?.name,
     totalFields: personFields.length
   });
 
@@ -474,8 +482,11 @@ async function findPersonFields() {
 
 /**
  * Populate all matching fields for a person
+ * @param {number} personId - The Affinity person ID
+ * @param {object} profileData - Profile data including linkedinUrl, headline, etc.
+ * @param {number} organizationId - Optional organization ID for Current Organization field
  */
-async function populatePersonFields(personId, profileData) {
+async function populatePersonFields(personId, profileData, organizationId = null) {
   const fields = await findPersonFields();
   const results = [];
 
@@ -522,12 +533,16 @@ async function populatePersonFields(personId, profileData) {
   if (fields.source) {
     // For dropdown fields, we'd need to find the right option
     // For text fields, just set "LinkedIn"
-    if (fields.source.value_type === 0) {
+    if (fields.source.value_type === 6) {
       const result = await addFieldValue(fields.source.id, personId, 'LinkedIn');
       if (result) results.push({ field: 'source', success: true });
-    } else {
     }
-  } else {
+  }
+
+  // Current Organization (Organization reference field)
+  if (fields.currentOrganization && organizationId) {
+    const result = await addFieldValue(fields.currentOrganization.id, personId, organizationId);
+    if (result) results.push({ field: 'currentOrganization', success: true });
   }
 
   console.log('[LinkedIn to Affinity] Populated fields:', results);
@@ -573,12 +588,14 @@ async function createPerson(personData) {
   };
 
   // Find or create organization if company name is available
+  let currentOrgId = null;
   if (enrichedData.company) {
     console.log('[LinkedIn to Affinity] Looking for organization:', enrichedData.company);
     const org = await findOrCreateOrganization(enrichedData.company);
     console.log('[LinkedIn to Affinity] Organization result:', org);
     if (org && org.id) {
       payload.organization_ids = [org.id];
+      currentOrgId = org.id;
       console.log('[LinkedIn to Affinity] Linking person to organization:', org.id, org.name);
     }
   } else {
@@ -593,9 +610,9 @@ async function createPerson(personData) {
 
   console.log('[LinkedIn to Affinity] Created person:', person.id, payload.first_name, payload.last_name);
 
-  // Populate all matching custom fields
+  // Populate all matching custom fields (including Current Organization)
   if (person.id) {
-    await populatePersonFields(person.id, enrichedData);
+    await populatePersonFields(person.id, enrichedData, currentOrgId);
   }
 
   // Return enriched person data
@@ -687,10 +704,13 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
     let latestNoteDate = null;
     let foundConversation = false;
 
+    console.log('[LinkedIn to Affinity] Checking duplicates - personId:', personId, 'notes found:', notes.length, 'looking for URL:', conversationUrl);
+
     // Check all notes for this conversation URL and extract message contents
     for (const note of notes) {
       if (note.content && note.content.includes(conversationUrl)) {
         foundConversation = true;
+        console.log('[LinkedIn to Affinity] Found matching note:', note.id);
 
         // Track the latest note date
         if (note.created_at) {
@@ -701,17 +721,27 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
         }
 
         // Extract message contents from the note to avoid re-sending
-        // Messages are formatted as: **Sender** (timestamp):\nContent\n\n
-        const messagePattern = /\*\*[^*]+\*\*[^:]*:\n([^\n]+)/g;
-        let match;
-        while ((match = messagePattern.exec(note.content)) !== null) {
-          const content = match[1].trim();
-          if (content && content !== '_No messages extracted_') {
-            existingMessageContents.add(content);
+        // Find the part after "---" which contains the messages
+        const separatorIdx = note.content.indexOf('---');
+        if (separatorIdx > 0) {
+          const messageSection = note.content.substring(separatorIdx);
+
+          // Pattern: ):\n\n followed by content (timestamp ends with ): then double newline)
+          const messagePattern = /\):\n+([^\n]+)/g;
+          let match;
+
+          while ((match = messagePattern.exec(messageSection)) !== null) {
+            const content = match[1].trim();
+            if (content && content !== '_No messages extracted_' && content !== '---') {
+              existingMessageContents.add(content);
+              console.log('[LinkedIn to Affinity] Found existing message:', content.substring(0, 50));
+            }
           }
         }
       }
     }
+
+    console.log('[LinkedIn to Affinity] Duplicate check result:', { isDuplicate: foundConversation, existingMessages: existingMessageContents.size });
 
     return {
       isDuplicate: foundConversation,
@@ -733,9 +763,13 @@ function filterNewMessages(messages, existingMessageContents) {
     return messages;
   }
 
+  console.log('[LinkedIn to Affinity] Existing messages in set:', Array.from(existingMessageContents));
+
   return messages.filter(msg => {
     const content = msg.content?.trim();
-    return content && !existingMessageContents.has(content);
+    const isExisting = existingMessageContents.has(content);
+    console.log('[LinkedIn to Affinity] Checking message:', JSON.stringify(content), 'exists:', isExisting);
+    return content && !isExisting;
   });
 }
 
@@ -769,6 +803,8 @@ async function sendToAffinity(data) {
  * @param {boolean} forceSend - If true, skip duplicate check
  */
 async function sendToAffinityWithPerson(personId, conversationData, forceSend = false) {
+  console.log('[LinkedIn to Affinity] sendToAffinityWithPerson - personId:', personId, 'forceSend:', forceSend);
+
   // Check for duplicate (unless force sending)
   // Check for existing messages and filter out already-sent ones
   const duplicateCheck = await checkDuplicateAndGetExistingMessages(conversationData.conversationUrl, personId);
@@ -777,8 +813,11 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
   const originalMessages = conversationData.messages || [];
   const newMessages = filterNewMessages(originalMessages, duplicateCheck.existingMessageContents);
 
+  console.log('[LinkedIn to Affinity] Message filtering - original:', originalMessages.length, 'new:', newMessages.length, 'isDuplicate:', duplicateCheck.isDuplicate);
+
   // If no new messages and not force sending, show duplicate warning
   if (!forceSend && newMessages.length === 0 && duplicateCheck.isDuplicate) {
+    console.log('[LinkedIn to Affinity] Returning duplicate warning');
     const dateStr = duplicateCheck.sentAt
       ? new Date(duplicateCheck.sentAt).toLocaleDateString()
       : 'a previous date';
