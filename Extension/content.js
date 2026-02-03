@@ -767,6 +767,27 @@ function _isConversationItem(element) {
   };
 
   /**
+   * Clean headline by removing LinkedIn status indicators
+   */
+  function cleanHeadline(headline) {
+    if (!headline) return null;
+
+    // Remove common LinkedIn status prefixes
+    const statusPatterns = [
+      /^Status is (offline|online|away|busy|dnd)\s*/i,
+      /^(offline|online|away|busy)\s*[·•\-]\s*/i,
+      /^\s*(offline|online)\s*/i
+    ];
+
+    let cleaned = headline;
+    for (const pattern of statusPatterns) {
+      cleaned = cleaned.replace(pattern, '');
+    }
+
+    return cleaned.trim() || null;
+  }
+
+  /**
    * Parse company name from LinkedIn headline
    * Handles formats like: "CEO at Company", "Engineer | Company", "Founder @ Company"
    */
@@ -860,7 +881,7 @@ function _isConversationItem(element) {
         // Try to get headline/subtitle from header
         const subtitleEl = header.querySelector('[class*="subtitle"], [class*="headline"], .t-12, .t-14');
         if (subtitleEl) {
-          info.headline = subtitleEl.textContent?.trim();
+          info.headline = cleanHeadline(subtitleEl.textContent?.trim());
         }
       }
 
@@ -884,7 +905,7 @@ function _isConversationItem(element) {
         for (const selector of headlineSelectors) {
           const el = document.querySelector(selector);
           if (el) {
-            const text = el.textContent?.trim();
+            const text = cleanHeadline(el.textContent?.trim());
             // Make sure it's not empty or just whitespace
             if (text && text.length > 2 && text.length < 200) {
               info.headline = text;

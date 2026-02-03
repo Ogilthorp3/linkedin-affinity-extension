@@ -926,6 +926,24 @@ async function getNotesForPerson(personId) {
 }
 
 /**
+ * Normalize LinkedIn URL for comparison (remove query params, trailing slashes)
+ */
+function normalizeLinkedInUrl(url) {
+  if (!url) return '';
+  try {
+    // Remove query parameters and hash
+    const urlObj = new URL(url);
+    let path = urlObj.pathname;
+    // Remove trailing slashes
+    path = path.replace(/\/+$/, '');
+    return `${urlObj.origin}${path}`;
+  } catch (e) {
+    // If URL parsing fails, just do basic cleanup
+    return url.split('?')[0].split('#')[0].replace(/\/+$/, '');
+  }
+}
+
+/**
  * Check if a conversation has already been sent to Affinity and extract existing messages
  */
 async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
@@ -936,11 +954,29 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
     let latestNoteDate = null;
     let foundConversation = false;
 
-    console.log('[LinkedIn to Affinity] Checking duplicates - personId:', personId, 'notes found:', notes.length, 'looking for URL:', conversationUrl);
+    // Normalize URL for comparison (LinkedIn URLs can have varying query params)
+    const normalizedUrl = normalizeLinkedInUrl(conversationUrl);
+    // Also extract thread ID for more robust matching
+    const threadIdMatch = conversationUrl.match(/\/thread\/([^/?]+)/);
+    const threadId = threadIdMatch ? threadIdMatch[1] : null;
+
+    console.log('[LinkedIn to Affinity] Checking duplicates - personId:', personId, 'notes found:', notes.length, 'looking for URL:', normalizedUrl, 'threadId:', threadId);
 
     // Check all notes for this conversation URL and extract message contents
     for (const note of notes) {
-      if (note.content && note.content.includes(conversationUrl)) {
+      if (!note.content) continue;
+
+      // Check for URL match (normalized) or thread ID match
+      const noteNormalizedUrls = note.content.match(/https:\/\/www\.linkedin\.com\/messaging\/[^\s)]+/g) || [];
+      const urlMatches = noteNormalizedUrls.some(noteUrl => {
+        const normalizedNoteUrl = normalizeLinkedInUrl(noteUrl);
+        return normalizedNoteUrl === normalizedUrl;
+      });
+
+      // Also check thread ID as fallback
+      const threadIdMatches = threadId && note.content.includes(threadId);
+
+      if (urlMatches || threadIdMatches) {
         foundConversation = true;
         console.log('[LinkedIn to Affinity] Found matching note:', note.id);
 
