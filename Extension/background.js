@@ -383,6 +383,33 @@ async function addFieldValue(fieldId, entityId, value) {
 }
 
 /**
+ * Create a new field definition in Affinity
+ * @param {string} name - Field name
+ * @param {number} entityType - 0=Person, 1=Organization, 2=Opportunity
+ * @param {number} valueType - 0=Person, 1=Org, 2=Dropdown, 3=Number, 4=Date, 5=Location, 6=Text
+ */
+async function createField(name, entityType, valueType) {
+  try {
+    const payload = {
+      name: name,
+      entity_type: entityType,
+      value_type: valueType
+    };
+
+    console.log('[LinkedIn to Affinity] Creating field:', payload);
+    const result = await affinityRequest('/fields', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    console.log('[LinkedIn to Affinity] Field created:', result);
+    return result;
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error creating field:', error);
+    return null;
+  }
+}
+
+/**
  * Cache for field definitions
  */
 let fieldsCache = null;
@@ -755,12 +782,26 @@ async function populatePersonFields(personId, profileData, isNewPerson = true, t
   // Contact Type / Tags (from VC workflow)
   if (tags && tags.length > 0) {
     const tagsValue = tags.join(', ');
-    if (fields.contactType) {
+    let contactTypeField = fields.contactType;
+
+    // Auto-create "Contact Type" field if it doesn't exist
+    if (!contactTypeField) {
+      console.log('[LinkedIn to Affinity] Contact Type field not found, creating it...');
+      const newField = await createField('Contact Type', 0, 6); // 0=Person, 6=Text
+      if (newField && newField.id) {
+        contactTypeField = newField;
+        // Clear cache so it's picked up next time
+        fieldsCache = null;
+        console.log('[LinkedIn to Affinity] Created Contact Type field:', newField.id);
+      }
+    }
+
+    if (contactTypeField) {
       fieldPromises.push(
-        addFieldValue(fields.contactType.id, personId, tagsValue)
+        addFieldValue(contactTypeField.id, personId, tagsValue)
           .then(result => {
             if (result) {
-              console.log('[LinkedIn to Affinity] Tags saved to field:', fields.contactType.name, '=', tagsValue);
+              console.log('[LinkedIn to Affinity] Tags saved to field:', contactTypeField.name, '=', tagsValue);
               return { field: 'contactType', success: true, value: tagsValue };
             }
             return null;
@@ -771,8 +812,7 @@ async function populatePersonFields(personId, profileData, isNewPerson = true, t
           })
       );
     } else {
-      console.log('[LinkedIn to Affinity] No Contact Type field found in Affinity. Create a field named "Contact Type" or "Tags" to store contact classifications.');
-      console.log('[LinkedIn to Affinity] Available person fields:', fields._all?.map(f => f.name).join(', '));
+      console.log('[LinkedIn to Affinity] Could not create Contact Type field. Tags will only appear in notes.');
     }
   }
 
