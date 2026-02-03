@@ -999,7 +999,13 @@ function formatConversationNote(data) {
 async function getNotesForPerson(personId) {
   try {
     const result = await affinityRequest(`/notes?person_id=${personId}`);
-    return result.notes || result || [];
+    const notes = result.notes || result || [];
+    console.log('[LinkedIn to Affinity] getNotesForPerson raw result:', JSON.stringify(result).substring(0, 500));
+    console.log('[LinkedIn to Affinity] getNotesForPerson notes count:', notes.length);
+    if (notes.length > 0) {
+      console.log('[LinkedIn to Affinity] First note preview:', notes[0]?.content?.substring(0, 200));
+    }
+    return notes;
   } catch (error) {
     console.error('[LinkedIn to Affinity] Error getting notes:', error);
     return [];
@@ -1045,17 +1051,24 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
 
     // Check all notes for this conversation URL and extract message contents
     for (const note of notes) {
-      if (!note.content) continue;
+      if (!note.content) {
+        console.log('[LinkedIn to Affinity] Note has no content, skipping:', note.id);
+        continue;
+      }
 
       // Check for URL match (normalized) or thread ID match
       const noteNormalizedUrls = note.content.match(/https:\/\/www\.linkedin\.com\/messaging\/[^\s)]+/g) || [];
+      console.log('[LinkedIn to Affinity] Note', note.id, '- URLs found in note:', noteNormalizedUrls);
+
       const urlMatches = noteNormalizedUrls.some(noteUrl => {
         const normalizedNoteUrl = normalizeLinkedInUrl(noteUrl);
+        console.log('[LinkedIn to Affinity] Comparing:', normalizedNoteUrl, 'vs', normalizedUrl, '=', normalizedNoteUrl === normalizedUrl);
         return normalizedNoteUrl === normalizedUrl;
       });
 
       // Also check thread ID as fallback
       const threadIdMatches = threadId && note.content.includes(threadId);
+      console.log('[LinkedIn to Affinity] Note', note.id, '- urlMatches:', urlMatches, 'threadIdMatches:', threadIdMatches);
 
       if (urlMatches || threadIdMatches) {
         foundConversation = true;
@@ -1105,6 +1118,31 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
 }
 
 /**
+ * Normalize message content for comparison
+ * Handles escape characters and other variations that can cause mismatches
+ */
+function normalizeMessageContent(content) {
+  if (!content) return '';
+  let normalized = content.trim();
+
+  // Handle multiple levels of escaping (e.g., \\' -> ' and \' -> ')
+  // Run replacement twice to handle double-escaping
+  for (let i = 0; i < 2; i++) {
+    normalized = normalized
+      .replace(/\\'/g, "'")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+  }
+
+  return normalized
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    // Normalize quotes (curly quotes to straight)
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
+}
+
+/**
  * Filter out messages that have already been sent
  */
 function filterNewMessages(messages, existingMessageContents) {
@@ -1112,12 +1150,18 @@ function filterNewMessages(messages, existingMessageContents) {
     return messages;
   }
 
-  console.log('[LinkedIn to Affinity] Existing messages in set:', Array.from(existingMessageContents));
+  // Create a normalized set for comparison
+  const normalizedExisting = new Set(
+    Array.from(existingMessageContents).map(msg => normalizeMessageContent(msg))
+  );
+
+  console.log('[LinkedIn to Affinity] Existing messages (normalized):', Array.from(normalizedExisting).map(m => m.substring(0, 50)));
 
   return messages.filter(msg => {
     const content = msg.content?.trim();
-    const isExisting = existingMessageContents.has(content);
-    console.log('[LinkedIn to Affinity] Checking message:', JSON.stringify(content), 'exists:', isExisting);
+    const normalizedContent = normalizeMessageContent(content);
+    const isExisting = normalizedExisting.has(normalizedContent);
+    console.log('[LinkedIn to Affinity] Checking message:', JSON.stringify(normalizedContent.substring(0, 50)), 'exists:', isExisting);
     return content && !isExisting;
   });
 }
@@ -1355,6 +1399,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     formatConversationNote,
     filterNewMessages,
+    normalizeMessageContent,
     getApiKey,
     affinityRequest,
     searchPerson,

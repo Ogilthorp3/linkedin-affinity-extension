@@ -259,6 +259,83 @@ describe('filterNewMessages', () => {
     expect(result).toHaveLength(1);
     expect(result[0].content).toBe('Valid message');
   });
+
+  test('matches messages with escaped apostrophes (French text)', () => {
+    // This is the exact case from the bug report:
+    // Stored in Affinity: "Salut Bert, enchanté de t\\'avoir rencontré"
+    // Incoming from LinkedIn: "Salut Bert, enchanté de t'avoir rencontré"
+    const messages = [
+      { content: "Salut Bert, enchanté de t'avoir rencontré en personne" }
+    ];
+    const existingMessageContents = new Set(["Salut Bert, enchanté de t\\'avoir rencontré en personne"]);
+
+    const result = filterNewMessages(messages, existingMessageContents);
+
+    expect(result).toHaveLength(0); // Should detect as duplicate
+  });
+
+  test('matches messages with double-escaped quotes', () => {
+    const messages = [
+      { content: 'He said "hello" to me' }
+    ];
+    const existingMessageContents = new Set(['He said \\"hello\\" to me']);
+
+    const result = filterNewMessages(messages, existingMessageContents);
+
+    expect(result).toHaveLength(0); // Should detect as duplicate
+  });
+
+  test('matches messages with curly quotes vs straight quotes', () => {
+    const messages = [
+      { content: "It's a 'test' message" }
+    ];
+    const existingMessageContents = new Set(["It's a 'test' message"]); // curly quotes
+
+    const result = filterNewMessages(messages, existingMessageContents);
+
+    expect(result).toHaveLength(0); // Should detect as duplicate
+  });
+});
+
+describe('normalizeMessageContent', () => {
+  const { normalizeMessageContent } = require('../Extension/background.js');
+
+  test('removes escaped apostrophes', () => {
+    expect(normalizeMessageContent("t\\'avoir")).toBe("t'avoir");
+  });
+
+  test('removes escaped double quotes', () => {
+    expect(normalizeMessageContent('said \\"hello\\"')).toBe('said "hello"');
+  });
+
+  test('handles double-escaped backslashes', () => {
+    expect(normalizeMessageContent("path\\\\to\\\\file")).toBe("path\\to\\file");
+  });
+
+  test('normalizes multiple spaces to single space', () => {
+    expect(normalizeMessageContent("hello   world")).toBe("hello world");
+  });
+
+  test('converts curly single quotes to straight quotes', () => {
+    expect(normalizeMessageContent("it's")).toBe("it's");
+  });
+
+  test('converts curly double quotes to straight quotes', () => {
+    expect(normalizeMessageContent('"quoted"')).toBe('"quoted"');
+  });
+
+  test('handles empty string', () => {
+    expect(normalizeMessageContent('')).toBe('');
+  });
+
+  test('handles null/undefined', () => {
+    expect(normalizeMessageContent(null)).toBe('');
+    expect(normalizeMessageContent(undefined)).toBe('');
+  });
+
+  test('trims whitespace', () => {
+    expect(normalizeMessageContent('  hello world  ')).toBe('hello world');
+  });
 });
 
 describe('getApiKey', () => {
