@@ -1327,8 +1327,9 @@ function _isConversationItem(element) {
       if (header) header.style.display = 'none';
 
       // Build "View in Affinity" link if we have personId
+      // Affinity uses /people/ path (not /persons/) for the web app
       const viewLinkHtml = successData?.personId
-        ? `<a href="https://app.affinity.co/persons/${successData.personId}" target="_blank" class="affinity-view-link">View in Affinity →</a>`
+        ? `<a href="https://app.affinity.co/people/${successData.personId}" target="_blank" class="affinity-view-link">View in Affinity →</a>`
         : '';
 
       // Create celebration content
