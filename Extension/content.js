@@ -420,6 +420,77 @@ function _isConversationItem(element) {
   let currentConversationUrl = null;
   let pendingConversationData = null;
 
+  /**
+   * Increment the sync count in storage (for stats)
+   */
+  function incrementSyncCount() {
+    try {
+      browserAPI.storage.local.get(['syncCount'], (result) => {
+        const count = (result.syncCount || 0) + 1;
+        browserAPI.storage.local.set({ syncCount: count });
+      });
+    } catch (error) {
+      console.log('[LinkedIn to Affinity] Could not update sync count:', error);
+    }
+  }
+
+  /**
+   * Show first-run welcome tooltip
+   */
+  function showFirstRunWelcome(button) {
+    // Check if we've shown the welcome before
+    browserAPI.storage.local.get(['hasSeenWelcome'], (result) => {
+      if (result.hasSeenWelcome) return;
+
+      // Create tooltip
+      const tooltip = document.createElement('div');
+      tooltip.className = 'affinity-welcome-tooltip';
+      tooltip.innerHTML = `
+        <div class="affinity-welcome-content">
+          <div class="affinity-welcome-title">👋 Welcome to LinkedIn to Affinity!</div>
+          <div class="affinity-welcome-text">
+            Click this button to save contacts and conversations to your CRM.
+          </div>
+          <div class="affinity-welcome-shortcut">
+            <span>Pro tip:</span> Use <kbd>⌘</kbd><kbd>⇧</kbd><kbd>A</kbd> for quick access
+          </div>
+          <button class="affinity-welcome-dismiss">Got it!</button>
+        </div>
+        <div class="affinity-welcome-arrow"></div>
+      `;
+
+      // Position near the button
+      document.body.appendChild(tooltip);
+
+      // Position the tooltip
+      const buttonRect = button.getBoundingClientRect();
+      tooltip.style.position = 'fixed';
+      tooltip.style.top = `${buttonRect.bottom + 10}px`;
+      tooltip.style.left = `${Math.max(10, buttonRect.left - 100)}px`;
+      tooltip.style.zIndex = '10002';
+
+      // Dismiss handler
+      const dismiss = () => {
+        tooltip.classList.add('affinity-welcome-fade-out');
+        setTimeout(() => tooltip.remove(), 300);
+        browserAPI.storage.local.set({ hasSeenWelcome: true });
+      };
+
+      tooltip.querySelector('.affinity-welcome-dismiss').addEventListener('click', dismiss);
+
+      // Also dismiss on clicking outside or after 15 seconds
+      setTimeout(() => {
+        if (tooltip.parentNode) dismiss();
+      }, 15000);
+
+      document.addEventListener('click', (e) => {
+        if (!tooltip.contains(e.target) && e.target !== button) {
+          dismiss();
+        }
+      }, { once: true });
+    });
+  }
+
   // ============================================================
   // ADAPTIVE DOM SCANNER
   // Dynamically detects LinkedIn's DOM structure
@@ -1175,8 +1246,9 @@ function _isConversationItem(element) {
   /**
    * Show feedback message on the modal (success, warning, or error)
    * @param {Object} duplicateData - Optional data for "Send Anyway" button (personId, conversationData)
+   * @param {Object} successData - Optional data for success state (personId for "View in Affinity" link)
    */
-  function showModalFeedback(modalOverlay, type, message, duplicateData = null) {
+  function showModalFeedback(modalOverlay, type, message, duplicateData = null, successData = null) {
     const modal = modalOverlay.querySelector('.affinity-modal');
     if (!modal) return;
 
@@ -1198,6 +1270,11 @@ function _isConversationItem(element) {
       // Hide header for cleaner look
       if (header) header.style.display = 'none';
 
+      // Build "View in Affinity" link if we have personId
+      const viewLinkHtml = successData?.personId
+        ? `<a href="https://app.affinity.co/persons/${successData.personId}" target="_blank" class="affinity-view-link">View in Affinity →</a>`
+        : '';
+
       // Create celebration content
       const celebration = document.createElement('div');
       celebration.className = 'affinity-celebration';
@@ -1209,6 +1286,7 @@ function _isConversationItem(element) {
           </svg>
         </div>
         <div class="affinity-celebration-text">${escapeHtml(message)}</div>
+        ${viewLinkHtml}
         <div class="affinity-celebration-confetti"></div>
       `;
 
@@ -1221,8 +1299,8 @@ function _isConversationItem(element) {
       setTimeout(() => createConfetti(celebration.querySelector('.affinity-celebration-confetti')), 300);
 
       if (footer) footer.style.display = 'none';
-      // Auto-close after delay
-      setTimeout(() => hideContactModal(activeButton), 2500);
+      // Auto-close after delay (longer if there's a link to click)
+      setTimeout(() => hideContactModal(activeButton), successData?.personId ? 4000 : 2500);
       return;
     }
 
@@ -1303,8 +1381,10 @@ function _isConversationItem(element) {
       });
 
       if (response.success) {
+        // Increment stats counter
+        incrementSyncCount();
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!');
+          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!', null, { personId });
         }
       } else {
         throw new Error(response.error || 'Failed to send');
@@ -1361,6 +1441,8 @@ function _isConversationItem(element) {
       });
 
       if (response.success) {
+        // Increment stats counter
+        incrementSyncCount();
         // Show success feedback on modal
         const msgCount = response.newMessageCount;
         const successMsg = msgCount !== undefined
@@ -1368,7 +1450,7 @@ function _isConversationItem(element) {
           : 'Conversation sent successfully!';
 
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', successMsg);
+          showModalFeedback(modalOverlay, 'success', successMsg, null, { personId });
         } else {
           // Fallback to button feedback if modal was closed
           if (button) {
@@ -1438,10 +1520,12 @@ function _isConversationItem(element) {
       });
 
       if (response.success) {
+        // Increment stats counter
+        incrementSyncCount();
         // Show success feedback on modal
         const name = response.personName || conversationData.sender?.name || 'contact';
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', `Created ${name} and sent conversation!`);
+          showModalFeedback(modalOverlay, 'success', `Created ${name} and sent conversation!`, null, { personId: response.personId });
         } else if (button) {
           button.classList.add('affinity-success');
           const span = button.querySelector('span');
@@ -1741,6 +1825,11 @@ function _isConversationItem(element) {
 
     if (injectedCount > 0) {
       console.log(`[LinkedIn to Affinity] Injected ${injectedCount} button(s)`);
+      // Show welcome tooltip on first button injection
+      const firstButton = document.querySelector('.' + BUTTON_CLASS);
+      if (firstButton) {
+        setTimeout(() => showFirstRunWelcome(firstButton), 500);
+      }
     }
   }
 

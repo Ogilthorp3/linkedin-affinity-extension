@@ -615,6 +615,25 @@
   animation: affinity-fade-scale-in 0.4s ease 0.5s both;
 }
 
+.affinity-view-link {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #0a66c2;
+  text-decoration: none;
+  background: #e7f3ff;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  animation: affinity-fade-scale-in 0.4s ease 0.7s both;
+}
+
+.affinity-view-link:hover {
+  background: #0a66c2;
+  color: #ffffff;
+}
+
 @keyframes affinity-fade-scale-in {
   from {
     opacity: 0;
@@ -684,4 +703,108 @@
     transform: translateY(120px) translateX(40px) rotate(-720deg) scale(0);
     opacity: 0;
   }
+}
+
+/* First-Run Welcome Tooltip */
+.affinity-welcome-tooltip {
+  position: fixed;
+  z-index: 10002;
+  animation: affinity-welcome-in 0.3s ease;
+}
+
+@keyframes affinity-welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.affinity-welcome-tooltip.affinity-welcome-fade-out {
+  animation: affinity-welcome-out 0.3s ease forwards;
+}
+
+@keyframes affinity-welcome-out {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.affinity-welcome-content {
+  background: #1d1d1f;
+  color: #ffffff;
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  max-width: 280px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+}
+
+.affinity-welcome-arrow {
+  position: absolute;
+  top: -8px;
+  left: 120px;
+  width: 16px;
+  height: 16px;
+  background: #1d1d1f;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+
+.affinity-welcome-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.affinity-welcome-text {
+  font-size: 13px;
+  color: #a1a1a6;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.affinity-welcome-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a1a1a6;
+  margin-bottom: 14px;
+}
+
+.affinity-welcome-shortcut span {
+  color: #86868b;
+}
+
+.affinity-welcome-shortcut kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: -apple-system, BlinkMacSystemFont, monospace;
+  font-size: 11px;
+  background: #2c2c2e;
+  border: 1px solid #3a3a3c;
+  border-radius: 4px;
+  color: #ffffff;
+}
+
+.affinity-welcome-dismiss {
+  width: 100%;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ffffff;
+  background: #0a66c2;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.affinity-welcome-dismiss:hover {
+  background: #004182;
 }

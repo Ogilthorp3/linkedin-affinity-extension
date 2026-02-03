@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusDiv = document.getElementById('status');
   const connectionDot = document.getElementById('connectionDot');
   const connectionText = document.getElementById('connectionText');
+  const statsBadge = document.getElementById('statsBadge');
+  const statsText = document.getElementById('statsText');
 
   // Load existing API key
   browserAPI.storage.sync.get(['affinityApiKey'], (result) => {
@@ -17,6 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
       apiKeyInput.value = result.affinityApiKey;
       updateConnectionStatus('checking');
       testConnection();
+    }
+  });
+
+  // Load and display sync stats
+  browserAPI.storage.local.get(['syncCount'], (result) => {
+    const count = result.syncCount || 0;
+    if (count > 0) {
+      statsText.textContent = `${count} contact${count === 1 ? '' : 's'} synced`;
+      statsBadge.style.display = 'flex';
     }
   });
 

@@ -163,6 +163,36 @@
       background: #ff3b30;
     }
 
+    .stats-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: white;
+      animation: statsSlideIn 0.3s ease;
+    }
+
+    @keyframes statsSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .stats-icon {
+      font-size: 14px;
+    }
+
     .help-text {
       margin-top: 16px;
       padding-top: 16px;
@@ -225,6 +255,11 @@
   <div class="connection-status" id="connectionStatus">
     <span class="connection-dot" id="connectionDot"></span>
     <span id="connectionText">Not configured</span>
+  </div>
+
+  <div class="stats-badge" id="statsBadge" style="display: none;">
+    <span class="stats-icon">✨</span>
+    <span id="statsText">0 contacts synced</span>
   </div>
 
   <div class="help-text">
