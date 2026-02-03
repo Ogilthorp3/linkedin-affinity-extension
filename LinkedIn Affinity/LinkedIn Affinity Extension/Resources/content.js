@@ -1346,7 +1346,7 @@ function _isConversationItem(element) {
       // Use the configured subdomain (e.g., triptyq.affinity.co instead of app.affinity.co)
       const subdomain = successData?.subdomain || 'app';
       const viewLinkHtml = successData?.personId
-        ? `<a href="https://${subdomain}.affinity.co/people/${successData.personId}" target="_blank" class="affinity-view-link">View in Affinity →</a>`
+        ? `<a href="https://${subdomain}.affinity.co/persons/${successData.personId}" target="_blank" class="affinity-view-link">View in Affinity →</a>`
         : '';
 
       // Create celebration content
