@@ -8,3 +8,24 @@ coverage/
 
 # Package lock
 package-lock.json
+
+# Environment files (may contain API keys)
+.env
+.env.local
+.env.*.local
+*.env
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+*.zip
+
+# Xcode user data
+xcuserdata/
+*.xcuserdatad/
