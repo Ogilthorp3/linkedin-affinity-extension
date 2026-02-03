@@ -1227,13 +1227,21 @@ function _isConversationItem(element) {
       ></textarea>
     `;
 
-    // Footer with Create New option
+    // Footer - only show "Create Contact" when no matches exist (to prevent duplicates)
     const footer = document.createElement('div');
     footer.className = 'affinity-modal-footer';
-    footer.innerHTML = `
-      <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
-      <button class="affinity-btn-primary affinity-modal-create-new">${hasMatches ? 'Create New Contact' : 'Create Contact'}</button>
-    `;
+    if (hasMatches) {
+      // When matches exist, only show Cancel - user must select an existing contact
+      footer.innerHTML = `
+        <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
+      `;
+    } else {
+      // No matches - show Create Contact button
+      footer.innerHTML = `
+        <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
+        <button class="affinity-btn-primary affinity-modal-create-new">Create Contact</button>
+      `;
+    }
 
     // Assemble modal
     modal.appendChild(header);
@@ -1247,11 +1255,16 @@ function _isConversationItem(element) {
     // Event listeners
     header.querySelector('.affinity-modal-close').addEventListener('click', () => hideContactModal(activeButton));
     footer.querySelector('.affinity-modal-cancel').addEventListener('click', () => hideContactModal(activeButton));
-    footer.querySelector('.affinity-modal-create-new').addEventListener('click', () => {
-      const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
-      const tags = getSelectedTags();
-      handleCreateNewContact(conversationData, quickNote, tags);
-    });
+
+    // Only add create-new listener if button exists (no matches case)
+    const createNewBtn = footer.querySelector('.affinity-modal-create-new');
+    if (createNewBtn) {
+      createNewBtn.addEventListener('click', () => {
+        const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
+        const tags = getSelectedTags();
+        handleCreateNewContact(conversationData, quickNote, tags);
+      });
+    }
 
     // Close on overlay click
     overlay.addEventListener('click', (e) => {
