@@ -573,7 +573,8 @@ describe('formatDayConversationNote', () => {
 
     expect(result).toContain('# 💬 LinkedIn Conversation');
     expect(result).toContain('**John Doe**');
-    expect(result).toContain('<!-- day:2024-01-15 thread:');
+    // Day marker is now visible text (not HTML comment which Affinity strips)
+    expect(result).toContain('📆 *Day: 2024-01-15 | Thread: 123*');
     expect(result).toContain('🏷️ **Tags:** Founder');
     expect(result).toContain('📝 **Note:**');
     expect(result).toContain('> Great call!');

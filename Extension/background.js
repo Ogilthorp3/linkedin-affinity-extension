@@ -1135,15 +1135,20 @@ function formatDayConversationNote(data, dayKey, dayMessages) {
   const messageCount = dayMessages?.length || 0;
   const dateFormatted = formatDayKeyForDisplay(dayKey);
 
+  // Extract thread ID for compact storage
+  const threadIdMatch = conversationUrl.match(/\/(?:thread|conversation)\/([^/?]+)/);
+  const threadId = threadIdMatch ? threadIdMatch[1] : '';
+
   // Build the note with clean formatting
   let note = '';
 
-  // Header with day marker for identification
+  // Header with visible day marker for identification (HTML comments get stripped by Affinity)
   note += `# 💬 LinkedIn Conversation\n\n`;
   note += `**${senderName}** · ${dateFormatted} · ${messageCount} message${messageCount !== 1 ? 's' : ''}\n\n`;
 
-  // Hidden day marker for identification (used for finding/updating notes)
-  note += `<!-- day:${dayKey} thread:${conversationUrl} -->\n\n`;
+  // Visible day marker for identification (used for finding/updating notes)
+  // Format: 📆 Day: YYYY-MM-DD | Thread: xxx
+  note += `📆 *Day: ${dayKey} | Thread: ${threadId}*\n\n`;
 
   // Tags section (if any) - only on first day or if explicitly set
   if (tags && tags.length > 0) {
@@ -1331,7 +1336,7 @@ async function getNotesForPerson(personId) {
 }
 
 /**
- * Normalize LinkedIn URL for comparison (remove query params, trailing slashes)
+ * Normalize LinkedIn URL for comparison (remove query params, trailing slashes, normalize domain)
  */
 function normalizeLinkedInUrl(url) {
   if (!url) return '';
@@ -1341,11 +1346,25 @@ function normalizeLinkedInUrl(url) {
     let path = urlObj.pathname;
     // Remove trailing slashes
     path = path.replace(/\/+$/, '');
-    return `${urlObj.origin}${path}`;
+    // Normalize to www.linkedin.com (some URLs might not have www)
+    const host = urlObj.host.replace(/^(www\.)?/, 'www.');
+    return `https://${host}${path}`;
   } catch (e) {
     // If URL parsing fails, just do basic cleanup
-    return url.split('?')[0].split('#')[0].replace(/\/+$/, '');
+    let cleaned = url.split('?')[0].split('#')[0].replace(/\/+$/, '');
+    // Normalize www
+    cleaned = cleaned.replace(/https?:\/\/(www\.)?linkedin\.com/, 'https://www.linkedin.com');
+    return cleaned;
   }
+}
+
+/**
+ * Extract thread ID from LinkedIn messaging URL
+ */
+function extractThreadId(url) {
+  if (!url) return null;
+  const match = url.match(/\/(?:thread|conversation)\/([^/?]+)/);
+  return match ? match[1] : null;
 }
 
 /**
@@ -1364,10 +1383,10 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
     // Normalize URL for comparison (LinkedIn URLs can have varying query params)
     const normalizedUrl = normalizeLinkedInUrl(conversationUrl);
     // Also extract thread ID for more robust matching
-    const threadIdMatch = conversationUrl.match(/\/thread\/([^/?]+)/);
-    const threadId = threadIdMatch ? threadIdMatch[1] : null;
+    const threadId = extractThreadId(conversationUrl);
 
-    console.log('[LinkedIn to Affinity] Checking duplicates - personId:', personId, 'notes found:', notes.length, 'looking for URL:', normalizedUrl, 'threadId:', threadId);
+    console.log('[LinkedIn to Affinity] Checking duplicates - personId:', personId, 'notes found:', notes.length);
+    console.log('[LinkedIn to Affinity] Looking for URL:', normalizedUrl, 'threadId:', threadId);
 
     // Check all notes for this conversation URL and extract message contents
     for (const note of notes) {
@@ -1377,20 +1396,29 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
       }
 
       // Check for URL match (normalized) or thread ID match or day marker
-      const noteNormalizedUrls = note.content.match(/https:\/\/www\.linkedin\.com\/messaging\/[^\s)]+/g) || [];
-      const dayMarkerMatch = note.content.match(/<!-- day:(\d{4}-\d{2}-\d{2}) thread:([^\s]+) -->/);
+      // Support both http and https, with or without www
+      const noteNormalizedUrls = note.content.match(/https?:\/\/(?:www\.)?linkedin\.com\/messaging\/[^\s)>\]]+/g) || [];
+
+      // Look for visible day marker: 📆 *Day: YYYY-MM-DD | Thread: xxx*
+      const dayMarkerMatch = note.content.match(/📆 \*Day: (\d{4}-\d{2}-\d{2}) \| Thread: ([^*]+)\*/);
+      // Also support old HTML comment format for backwards compatibility
+      const oldDayMarkerMatch = note.content.match(/<!-- day:(\d{4}-\d{2}-\d{2}) thread:([^\s]+) -->/);
+      const effectiveDayMarker = dayMarkerMatch || oldDayMarkerMatch;
 
       const urlMatches = noteNormalizedUrls.some(noteUrl => {
         const normalizedNoteUrl = normalizeLinkedInUrl(noteUrl);
         return normalizedNoteUrl === normalizedUrl;
       });
 
-      // Also check thread ID as fallback
-      const threadIdMatches = threadId && (note.content.includes(threadId) || (dayMarkerMatch && dayMarkerMatch[2].includes(threadId)));
+      // Also check thread ID as fallback (more robust matching)
+      const threadIdMatches = threadId && (
+        note.content.includes(threadId) ||
+        (effectiveDayMarker && effectiveDayMarker[2].includes(threadId))
+      );
 
       if (urlMatches || threadIdMatches) {
         foundConversation = true;
-        console.log('[LinkedIn to Affinity] Found matching note:', note.id);
+        console.log('[LinkedIn to Affinity] Found matching note:', note.id, 'urlMatches:', urlMatches, 'threadIdMatches:', threadIdMatches);
 
         // Track the latest note date
         if (note.created_at) {
@@ -1402,10 +1430,12 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
 
         // Extract day key from note (from day marker or created_at)
         let dayKey = null;
-        if (dayMarkerMatch) {
-          dayKey = dayMarkerMatch[1];
+        if (effectiveDayMarker) {
+          dayKey = effectiveDayMarker[1];
+          console.log('[LinkedIn to Affinity] Found day marker in note:', dayKey);
         } else if (note.created_at) {
           dayKey = note.created_at.split('T')[0];
+          console.log('[LinkedIn to Affinity] Using created_at date for note:', dayKey);
         }
 
         // Extract messages from this note using the new format
@@ -1540,6 +1570,7 @@ async function sendToAffinity(data) {
  */
 async function sendToAffinityWithPerson(personId, conversationData, forceSend = false) {
   console.log('[LinkedIn to Affinity] sendToAffinityWithPerson - personId:', personId, 'forceSend:', forceSend);
+  console.log('[LinkedIn to Affinity] conversationUrl:', conversationData.conversationUrl);
 
   const senderName = conversationData.sender?.name || 'Unknown';
 
@@ -1548,9 +1579,16 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
 
   // Filter to only new messages (not already in any note)
   const originalMessages = conversationData.messages || [];
+
+  // Log sample message timestamps to help debug day parsing
+  if (originalMessages.length > 0) {
+    console.log('[LinkedIn to Affinity] Sample message timestamps:', originalMessages.slice(0, 3).map(m => m.timestamp));
+  }
+
   const newMessages = filterNewMessages(originalMessages, duplicateCheck.existingMessageContents);
 
   console.log('[LinkedIn to Affinity] Message filtering - original:', originalMessages.length, 'new:', newMessages.length, 'isDuplicate:', duplicateCheck.isDuplicate);
+  console.log('[LinkedIn to Affinity] Existing notes by day:', Array.from(duplicateCheck.notesByDay.keys()));
 
   // If no new messages and not force sending, show duplicate warning
   if (!forceSend && newMessages.length === 0 && duplicateCheck.isDuplicate) {
