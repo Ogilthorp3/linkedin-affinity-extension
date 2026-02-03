@@ -428,7 +428,7 @@ async function findPersonFields() {
        f.name?.toLowerCase() === 'profile headline') &&
       f.value_type === 6
     ),
-    // Current Job Title - Text field (value_type 6)
+    // Current Job Title - Text (6) or Dropdown (2)
     currentJobTitle: personFields.find(f =>
       (f.name?.toLowerCase() === 'current job title' ||
        f.name?.toLowerCase() === 'job title' ||
@@ -436,15 +436,15 @@ async function findPersonFields() {
        f.name?.toLowerCase() === 'title' ||
        f.name?.toLowerCase() === 'position' ||
        f.name?.toLowerCase() === 'role') &&
-      f.value_type === 6
+      (f.value_type === 6 || f.value_type === 2)
     ),
-    // Job Titles - Text field for all titles (value_type 6)
+    // Job Titles - Text (6) or Dropdown (2)
     jobTitles: personFields.find(f =>
       (f.name?.toLowerCase() === 'job titles' ||
        f.name?.toLowerCase() === 'all job titles' ||
        f.name?.toLowerCase() === 'past titles' ||
        f.name?.toLowerCase() === 'positions') &&
-      f.value_type === 6
+      (f.value_type === 6 || f.value_type === 2)
     ),
     // Location - Text or Location field (value_type 5 or 6)
     location: personFields.find(f =>
@@ -513,19 +513,98 @@ async function findPersonFields() {
 }
 
 /**
- * Find dropdown option ID by name (case-insensitive)
+ * Find dropdown option ID by name (case-insensitive) with fuzzy matching
  */
 function findDropdownOption(field, optionName) {
-  if (!field || !field.dropdown_options || !optionName) return null;
+  if (!field || !field.dropdown_options || !field.dropdown_options.length || !optionName) return null;
 
-  const lowerName = optionName.toLowerCase();
-  const option = field.dropdown_options.find(opt =>
-    opt.text?.toLowerCase() === lowerName ||
-    opt.text?.toLowerCase().includes(lowerName) ||
-    lowerName.includes(opt.text?.toLowerCase())
-  );
+  const lowerName = optionName.toLowerCase().trim();
+  const options = field.dropdown_options;
 
-  return option?.id || null;
+  // 1. Exact match
+  let option = options.find(opt => opt.text?.toLowerCase().trim() === lowerName);
+  if (option) return option.id;
+
+  // 2. Contains match (option contains search term or vice versa)
+  option = options.find(opt => {
+    const optText = opt.text?.toLowerCase().trim();
+    return optText?.includes(lowerName) || lowerName.includes(optText);
+  });
+  if (option) return option.id;
+
+  // 3. Fuzzy match - find best similarity score
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const opt of options) {
+    const optText = opt.text?.toLowerCase().trim();
+    if (!optText) continue;
+
+    const score = calculateSimilarity(lowerName, optText);
+    if (score > bestScore && score > 0.4) { // Minimum 40% similarity threshold
+      bestScore = score;
+      bestMatch = opt;
+    }
+  }
+
+  if (bestMatch) {
+    console.log(`[LinkedIn to Affinity] Fuzzy matched "${optionName}" to "${bestMatch.text}" (${Math.round(bestScore * 100)}% match)`);
+    return bestMatch.id;
+  }
+
+  return null;
+}
+
+/**
+ * Calculate similarity between two strings (0-1 score)
+ * Uses a combination of word overlap and character-level comparison
+ */
+function calculateSimilarity(str1, str2) {
+  if (!str1 || !str2) return 0;
+  if (str1 === str2) return 1;
+
+  // Word-based similarity
+  const words1 = str1.split(/\s+/).filter(w => w.length > 2);
+  const words2 = str2.split(/\s+/).filter(w => w.length > 2);
+
+  let wordMatches = 0;
+  for (const w1 of words1) {
+    for (const w2 of words2) {
+      if (w1 === w2 || w1.includes(w2) || w2.includes(w1)) {
+        wordMatches++;
+        break;
+      }
+    }
+  }
+
+  const wordScore = words1.length > 0 ? wordMatches / Math.max(words1.length, words2.length) : 0;
+
+  // Character-level similarity (Dice coefficient)
+  const bigrams1 = getBigrams(str1);
+  const bigrams2 = getBigrams(str2);
+
+  let matches = 0;
+  for (const bg of bigrams1) {
+    if (bigrams2.has(bg)) matches++;
+  }
+
+  const charScore = bigrams1.size + bigrams2.size > 0
+    ? (2 * matches) / (bigrams1.size + bigrams2.size)
+    : 0;
+
+  // Combined score (weight word matches more heavily)
+  return (wordScore * 0.6) + (charScore * 0.4);
+}
+
+/**
+ * Get bigrams (2-character sequences) from a string
+ */
+function getBigrams(str) {
+  const bigrams = new Set();
+  for (let i = 0; i < str.length - 1; i++) {
+    bigrams.add(str.substring(i, i + 2));
+  }
+  return bigrams;
 }
 
 /**
@@ -553,15 +632,58 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
   // Current Job Title (prefer currentJobTitle, fall back to title)
   const currentTitle = profileData.currentJobTitle || profileData.title;
   if (fields.currentJobTitle && currentTitle) {
-    const result = await addFieldValue(fields.currentJobTitle.id, personId, currentTitle);
-    if (result) results.push({ field: 'currentJobTitle', success: true });
+    if (fields.currentJobTitle.value_type === 2) {
+      // Dropdown field - find closest matching option
+      const optionId = findDropdownOption(fields.currentJobTitle, currentTitle);
+      if (optionId) {
+        const result = await addFieldValue(fields.currentJobTitle.id, personId, optionId);
+        if (result) results.push({ field: 'currentJobTitle', success: true });
+      } else {
+        console.log('[LinkedIn to Affinity] Current Job Title dropdown - no match for:', currentTitle);
+        if (fields.currentJobTitle.dropdown_options?.length > 0) {
+          console.log('[LinkedIn to Affinity] Available options:', fields.currentJobTitle.dropdown_options.map(o => o.text).join(', '));
+        } else {
+          console.log('[LinkedIn to Affinity] No dropdown options configured for Current Job Title');
+        }
+      }
+    } else {
+      // Text field
+      const result = await addFieldValue(fields.currentJobTitle.id, personId, currentTitle);
+      if (result) results.push({ field: 'currentJobTitle', success: true });
+    }
   }
 
-  // All Job Titles (concatenated)
+  // All Job Titles
   if (fields.jobTitles && profileData.allJobTitles && profileData.allJobTitles.length > 0) {
-    const titlesText = profileData.allJobTitles.join(', ');
-    const result = await addFieldValue(fields.jobTitles.id, personId, titlesText);
-    if (result) results.push({ field: 'jobTitles', success: true });
+    if (fields.jobTitles.value_type === 2) {
+      // Dropdown field - try to match each job title to an option
+      const matchedOptions = [];
+      for (const title of profileData.allJobTitles) {
+        const optionId = findDropdownOption(fields.jobTitles, title);
+        if (optionId && !matchedOptions.includes(optionId)) {
+          matchedOptions.push(optionId);
+        }
+      }
+      if (matchedOptions.length > 0) {
+        // Add each matched option as a separate field value
+        for (const optionId of matchedOptions) {
+          const result = await addFieldValue(fields.jobTitles.id, personId, optionId);
+          if (result) results.push({ field: 'jobTitles', success: true });
+        }
+      } else {
+        console.log('[LinkedIn to Affinity] Job Titles dropdown - no matches for:', profileData.allJobTitles);
+        if (fields.jobTitles.dropdown_options?.length > 0) {
+          console.log('[LinkedIn to Affinity] Available options:', fields.jobTitles.dropdown_options.map(o => o.text).join(', '));
+        } else {
+          console.log('[LinkedIn to Affinity] No dropdown options configured for Job Titles');
+        }
+      }
+    } else {
+      // Text field - concatenate all titles
+      const titlesText = profileData.allJobTitles.join(', ');
+      const result = await addFieldValue(fields.jobTitles.id, personId, titlesText);
+      if (result) results.push({ field: 'jobTitles', success: true });
+    }
   }
 
   // Location - handle both text (type 6) and location (type 5) field types
