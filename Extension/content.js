@@ -959,6 +959,61 @@ function _isConversationItem(element) {
   let activeButton = null;
 
   /**
+   * Create a preview card showing the contact data that will be synced
+   */
+  function createPreviewCard(sender) {
+    const card = document.createElement('div');
+    card.className = 'affinity-preview-card';
+
+    const photoUrl = sender.profileImageUrl;
+    const name = sender.name || 'Unknown';
+    const currentTitle = sender.currentJobTitle || sender.title || '';
+    const company = sender.company || '';
+    const location = sender.location || '';
+    const industry = sender.industry || '';
+    const headline = sender.headline || '';
+    const jobTitles = sender.allJobTitles || [];
+    const linkedinUrl = sender.linkedinUrl || '';
+
+    // Build the card HTML
+    let cardHTML = `
+      <div class="affinity-preview-header">
+        ${photoUrl ? `<img class="affinity-preview-photo" src="${escapeHtml(photoUrl)}" alt="" />` : `<div class="affinity-preview-photo-placeholder"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>`}
+        <div class="affinity-preview-name-section">
+          <div class="affinity-preview-name">${escapeHtml(name)}</div>
+          ${headline ? `<div class="affinity-preview-headline">${escapeHtml(headline)}</div>` : ''}
+        </div>
+      </div>
+      <div class="affinity-preview-details">
+    `;
+
+    // Add details with icons
+    if (currentTitle) {
+      cardHTML += `<div class="affinity-preview-row"><span class="affinity-preview-icon">💼</span><span>${escapeHtml(currentTitle)}</span></div>`;
+    }
+    if (company) {
+      cardHTML += `<div class="affinity-preview-row"><span class="affinity-preview-icon">🏢</span><span>${escapeHtml(company)}</span></div>`;
+    }
+    if (location) {
+      cardHTML += `<div class="affinity-preview-row"><span class="affinity-preview-icon">📍</span><span>${escapeHtml(location)}</span></div>`;
+    }
+    if (industry) {
+      cardHTML += `<div class="affinity-preview-row"><span class="affinity-preview-icon">🏷️</span><span>${escapeHtml(industry)}</span></div>`;
+    }
+    if (jobTitles.length > 1) {
+      cardHTML += `<div class="affinity-preview-row"><span class="affinity-preview-icon">📋</span><span>${jobTitles.length} job titles captured</span></div>`;
+    }
+    if (linkedinUrl) {
+      cardHTML += `<div class="affinity-preview-row affinity-preview-linkedin"><span class="affinity-preview-icon">🔗</span><span>LinkedIn profile linked</span></div>`;
+    }
+
+    cardHTML += `</div>`;
+    card.innerHTML = cardHTML;
+
+    return card;
+  }
+
+  /**
    * Create the contact selection modal
    */
   function createContactModal(matches, conversationData, button) {
@@ -973,14 +1028,15 @@ function _isConversationItem(element) {
     const modal = document.createElement('div');
     modal.className = 'affinity-modal';
 
-    const senderName = conversationData.sender?.name || 'Unknown';
+    const sender = conversationData.sender || {};
+    const senderName = sender.name || 'Unknown';
     const hasMatches = matches && matches.length > 0;
 
     // Header
     const header = document.createElement('div');
     header.className = 'affinity-modal-header';
     header.innerHTML = `
-      <h3>${hasMatches ? 'Select Contact' : 'No Matches Found'}</h3>
+      <h3>${hasMatches ? 'Select Contact' : 'New Contact'}</h3>
       <button class="affinity-modal-close" title="Close">&times;</button>
     `;
 
@@ -990,7 +1046,7 @@ function _isConversationItem(element) {
     if (hasMatches) {
       subtitle.textContent = `Found ${matches.length} contact${matches.length > 1 ? 's' : ''} matching "${senderName}"`;
     } else {
-      subtitle.textContent = `No existing contacts found for "${senderName}"`;
+      subtitle.textContent = `Ready to create contact in Affinity`;
     }
 
     // Contact list
@@ -1023,13 +1079,9 @@ function _isConversationItem(element) {
         list.appendChild(item);
       });
     } else {
-      // No matches - show helpful message
-      const noMatchesMsg = document.createElement('div');
-      noMatchesMsg.className = 'affinity-no-matches';
-      noMatchesMsg.innerHTML = `
-        <p>Would you like to create a new contact for <strong>${escapeHtml(senderName)}</strong>?</p>
-      `;
-      list.appendChild(noMatchesMsg);
+      // No matches - show preview card of what will be created
+      const previewCard = createPreviewCard(sender);
+      list.appendChild(previewCard);
     }
 
     // Quick notes input
@@ -1136,15 +1188,48 @@ function _isConversationItem(element) {
     const notesSection = modal.querySelector('.affinity-notes-section');
     const footer = modal.querySelector('.affinity-modal-footer');
     const subtitle = modal.querySelector('.affinity-modal-subtitle');
+    const header = modal.querySelector('.affinity-modal-header');
 
     if (list) list.style.display = 'none';
     if (notesSection) notesSection.style.display = 'none';
 
-    // Update header
-    const header = modal.querySelector('.affinity-modal-header h3');
-    if (header) {
-      header.textContent = type === 'success' ? 'Success' :
-                           type === 'warning' ? 'Already Sent' : 'Error';
+    // For success, show celebration animation
+    if (type === 'success') {
+      // Hide header for cleaner look
+      if (header) header.style.display = 'none';
+
+      // Create celebration content
+      const celebration = document.createElement('div');
+      celebration.className = 'affinity-celebration';
+      celebration.innerHTML = `
+        <div class="affinity-celebration-checkmark">
+          <svg viewBox="0 0 52 52">
+            <circle class="affinity-checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="affinity-checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <div class="affinity-celebration-text">${escapeHtml(message)}</div>
+        <div class="affinity-celebration-confetti"></div>
+      `;
+
+      // Replace subtitle with celebration
+      if (subtitle) {
+        subtitle.replaceWith(celebration);
+      }
+
+      // Trigger confetti
+      setTimeout(() => createConfetti(celebration.querySelector('.affinity-celebration-confetti')), 300);
+
+      if (footer) footer.style.display = 'none';
+      // Auto-close after delay
+      setTimeout(() => hideContactModal(activeButton), 2500);
+      return;
+    }
+
+    // Update header for non-success states
+    const headerTitle = modal.querySelector('.affinity-modal-header h3');
+    if (headerTitle) {
+      headerTitle.textContent = type === 'warning' ? 'Already Sent' : 'Error';
     }
 
     // Show feedback message
@@ -1173,6 +1258,28 @@ function _isConversationItem(element) {
       // Auto-close after delay
       const delay = type === 'error' ? 3000 : 2000;
       setTimeout(() => hideContactModal(activeButton), delay);
+    }
+  }
+
+  /**
+   * Create confetti particles for celebration
+   */
+  function createConfetti(container) {
+    if (!container) return;
+
+    const colors = ['#0a66c2', '#34c759', '#ff9500', '#ff3b30', '#af52de', '#007aff'];
+    const confettiCount = 50;
+
+    for (let i = 0; i < confettiCount; i++) {
+      const confetti = document.createElement('div');
+      confetti.className = 'affinity-confetti-piece';
+      confetti.style.cssText = `
+        left: ${50 + (Math.random() - 0.5) * 20}%;
+        background: ${colors[Math.floor(Math.random() * colors.length)]};
+        animation-delay: ${Math.random() * 0.3}s;
+        animation-duration: ${1 + Math.random() * 0.5}s;
+      `;
+      container.appendChild(confetti);
     }
   }
 
