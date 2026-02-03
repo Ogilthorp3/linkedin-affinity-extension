@@ -564,10 +564,25 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
     if (result) results.push({ field: 'jobTitles', success: true });
   }
 
-  // Location
+  // Location - handle both text (type 6) and location (type 5) field types
   if (fields.location && profileData.location) {
-    const result = await addFieldValue(fields.location.id, personId, profileData.location);
-    if (result) results.push({ field: 'location', success: true });
+    if (fields.location.value_type === 6) {
+      // Text field - just set the string
+      const result = await addFieldValue(fields.location.id, personId, profileData.location);
+      if (result) results.push({ field: 'location', success: true });
+    } else if (fields.location.value_type === 5) {
+      // Location field type - requires structured data
+      // Try to set with city name (Affinity may accept plain string for some location fields)
+      try {
+        const result = await addFieldValue(fields.location.id, personId, {
+          city: profileData.location,
+          country: null
+        });
+        if (result) results.push({ field: 'location', success: true });
+      } catch (error) {
+        console.log('[LinkedIn to Affinity] Location field requires structured data, skipping:', profileData.location);
+      }
+    }
   }
 
   // Industry
