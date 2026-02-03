@@ -615,68 +615,87 @@ function getBigrams(str) {
  */
 async function populatePersonFields(personId, profileData, isNewPerson = true) {
   const fields = await findPersonFields();
-  const results = [];
+  const fieldPromises = [];
 
   // LinkedIn URL
   if (fields.linkedin && profileData.linkedinUrl) {
-    const result = await addFieldValue(fields.linkedin.id, personId, profileData.linkedinUrl);
-    if (result) results.push({ field: 'linkedin', success: true });
+    fieldPromises.push(
+      addFieldValue(fields.linkedin.id, personId, profileData.linkedinUrl)
+        .then(result => result ? { field: 'linkedin', success: true } : null)
+        .catch(() => null)
+    );
   }
 
   // LinkedIn Profile Headline
   if (fields.headline && profileData.headline) {
-    const result = await addFieldValue(fields.headline.id, personId, profileData.headline);
-    if (result) results.push({ field: 'headline', success: true });
+    fieldPromises.push(
+      addFieldValue(fields.headline.id, personId, profileData.headline)
+        .then(result => result ? { field: 'headline', success: true } : null)
+        .catch(() => null)
+    );
   }
 
   // Current Job Title (prefer currentJobTitle, fall back to title)
   // Note: Affinity dropdown fields accept any text value directly
   const currentTitle = profileData.currentJobTitle || profileData.title;
   if (fields.currentJobTitle && currentTitle) {
-    const result = await addFieldValue(fields.currentJobTitle.id, personId, currentTitle);
-    if (result) results.push({ field: 'currentJobTitle', success: true });
+    fieldPromises.push(
+      addFieldValue(fields.currentJobTitle.id, personId, currentTitle)
+        .then(result => result ? { field: 'currentJobTitle', success: true } : null)
+        .catch(() => null)
+    );
   }
 
   // All Job Titles - concatenate all titles
   // Note: Affinity dropdown fields accept any text value directly
   if (fields.jobTitles && profileData.allJobTitles && profileData.allJobTitles.length > 0) {
     const titlesText = profileData.allJobTitles.join(', ');
-    const result = await addFieldValue(fields.jobTitles.id, personId, titlesText);
-    if (result) results.push({ field: 'jobTitles', success: true });
+    fieldPromises.push(
+      addFieldValue(fields.jobTitles.id, personId, titlesText)
+        .then(result => result ? { field: 'jobTitles', success: true } : null)
+        .catch(() => null)
+    );
   }
 
   // Location - handle both text (type 6) and location (type 5) field types
   if (fields.location && profileData.location) {
     if (fields.location.value_type === 6) {
       // Text field - just set the string
-      const result = await addFieldValue(fields.location.id, personId, profileData.location);
-      if (result) results.push({ field: 'location', success: true });
+      fieldPromises.push(
+        addFieldValue(fields.location.id, personId, profileData.location)
+          .then(result => result ? { field: 'location', success: true } : null)
+          .catch(() => null)
+      );
     } else if (fields.location.value_type === 5) {
       // Location field type - requires structured data
-      // Try to set with city name (Affinity may accept plain string for some location fields)
-      try {
-        const result = await addFieldValue(fields.location.id, personId, {
-          city: profileData.location,
-          country: null
-        });
-        if (result) results.push({ field: 'location', success: true });
-      } catch (error) {
-        console.log('[LinkedIn to Affinity] Location field requires structured data, skipping:', profileData.location);
-      }
+      fieldPromises.push(
+        addFieldValue(fields.location.id, personId, { city: profileData.location, country: null })
+          .then(result => result ? { field: 'location', success: true } : null)
+          .catch(() => {
+            console.log('[LinkedIn to Affinity] Location field requires structured data, skipping:', profileData.location);
+            return null;
+          })
+      );
     }
   }
 
   // Industry
   // Note: Affinity dropdown fields accept any text value directly
   if (fields.industry && profileData.industry) {
-    const result = await addFieldValue(fields.industry.id, personId, profileData.industry);
-    if (result) results.push({ field: 'industry', success: true });
+    fieldPromises.push(
+      addFieldValue(fields.industry.id, personId, profileData.industry)
+        .then(result => result ? { field: 'industry', success: true } : null)
+        .catch(() => null)
+    );
   }
 
   // Phone Number (if available - usually not from LinkedIn)
   if (fields.phone && profileData.phone) {
-    const result = await addFieldValue(fields.phone.id, personId, profileData.phone);
-    if (result) results.push({ field: 'phone', success: true });
+    fieldPromises.push(
+      addFieldValue(fields.phone.id, personId, profileData.phone)
+        .then(result => result ? { field: 'phone', success: true } : null)
+        .catch(() => null)
+    );
   }
 
   // Bio/About
@@ -685,8 +704,11 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
     const bio = profileData.about.length > 2000
       ? profileData.about.substring(0, 2000) + '...'
       : profileData.about;
-    const result = await addFieldValue(fields.bio.id, personId, bio);
-    if (result) results.push({ field: 'bio', success: true });
+    fieldPromises.push(
+      addFieldValue(fields.bio.id, personId, bio)
+        .then(result => result ? { field: 'bio', success: true } : null)
+        .catch(() => null)
+    );
   }
 
   // Source of Introduction (only for new persons)
@@ -695,23 +717,32 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
     if (fields.sourceOfIntroduction) {
       const optionId = findDropdownOption(fields.sourceOfIntroduction, 'LinkedIn');
       if (optionId) {
-        const result = await addFieldValue(fields.sourceOfIntroduction.id, personId, optionId);
-        if (result) results.push({ field: 'sourceOfIntroduction', success: true });
+        fieldPromises.push(
+          addFieldValue(fields.sourceOfIntroduction.id, personId, optionId)
+            .then(result => result ? { field: 'sourceOfIntroduction', success: true } : null)
+            .catch(() => null)
+        );
       } else {
         console.log('[LinkedIn to Affinity] LinkedIn option not found in Source of Introduction dropdown');
-        // Log available options for debugging
         console.log('[LinkedIn to Affinity] Available options:', fields.sourceOfIntroduction.dropdown_options?.map(o => o.text));
       }
     }
     // Fallback to text field
     else if (fields.sourceText) {
-      const result = await addFieldValue(fields.sourceText.id, personId, 'LinkedIn');
-      if (result) results.push({ field: 'sourceText', success: true });
+      fieldPromises.push(
+        addFieldValue(fields.sourceText.id, personId, 'LinkedIn')
+          .then(result => result ? { field: 'sourceText', success: true } : null)
+          .catch(() => null)
+      );
     }
   }
 
   // Note: "Current Organization" is an Affinity Data enrichment field
   // and cannot be set via API - enable Affinity Data enrichment in settings
+
+  // Run all field updates in parallel for speed
+  const allResults = await Promise.all(fieldPromises);
+  const results = allResults.filter(r => r !== null);
 
   console.log('[LinkedIn to Affinity] Populated fields:', results);
   return results;
@@ -767,19 +798,24 @@ async function createPerson(personData) {
 
   // Check if we have allCompanies from Voyager API (full work history)
   if (enrichedData.allCompanies && enrichedData.allCompanies.length > 0) {
-    console.log('[LinkedIn to Affinity] Linking', enrichedData.allCompanies.length, 'organizations from work history');
+    console.log('[LinkedIn to Affinity] Linking', enrichedData.allCompanies.length, 'organizations from work history (parallel)');
 
-    for (const company of enrichedData.allCompanies) {
-      if (company.name) {
-        try {
-          const org = await findOrCreateOrganization(company.name);
-          if (org && org.id && !organizationIds.includes(org.id)) {
-            organizationIds.push(org.id);
-            console.log('[LinkedIn to Affinity] Linked organization:', org.id, company.name, company.isCurrent ? '(current)' : '(past)');
-          }
-        } catch (error) {
+    // Parallelize organization lookups for faster processing
+    const companiesToLink = enrichedData.allCompanies.filter(c => c.name);
+    const orgPromises = companiesToLink.map(company =>
+      findOrCreateOrganization(company.name)
+        .then(org => ({ org, company }))
+        .catch(error => {
           console.log('[LinkedIn to Affinity] Could not link organization:', company.name, error.message);
-        }
+          return null;
+        })
+    );
+
+    const orgResults = await Promise.all(orgPromises);
+    for (const result of orgResults) {
+      if (result && result.org && result.org.id && !organizationIds.includes(result.org.id)) {
+        organizationIds.push(result.org.id);
+        console.log('[LinkedIn to Affinity] Linked organization:', result.org.id, result.company.name, result.company.isCurrent ? '(current)' : '(past)');
       }
     }
   } else if (enrichedData.company) {

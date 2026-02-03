@@ -1104,6 +1104,23 @@ function _isConversationItem(element) {
   }
 
   /**
+   * Show loading state on the modal with a message
+   */
+  function showModalLoading(modalOverlay, message = 'Processing...') {
+    const modal = modalOverlay.querySelector('.affinity-modal');
+    if (!modal) return;
+
+    modal.classList.add('affinity-modal-loading');
+
+    // Update subtitle to show loading message
+    const subtitle = modal.querySelector('.affinity-modal-subtitle');
+    if (subtitle) {
+      subtitle.textContent = message;
+      subtitle.className = 'affinity-modal-subtitle';
+    }
+  }
+
+  /**
    * Show feedback message on the modal (success, warning, or error)
    * @param {Object} duplicateData - Optional data for "Send Anyway" button (personId, conversationData)
    */
@@ -1168,7 +1185,7 @@ function _isConversationItem(element) {
 
     try {
       if (modalOverlay) {
-        modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
+        showModalLoading(modalOverlay, 'Sending conversation...');
       }
 
       const response = await sendMessage({
@@ -1221,7 +1238,7 @@ function _isConversationItem(element) {
     try {
       // Show loading state on modal
       if (modalOverlay) {
-        modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
+        showModalLoading(modalOverlay, 'Sending conversation...');
       }
 
       // Add quick note to conversation data
@@ -1295,9 +1312,10 @@ function _isConversationItem(element) {
     const button = activeButton;
 
     try {
-      // Show loading state on modal
+      // Show loading state on modal with descriptive message
       if (modalOverlay) {
-        modalOverlay.querySelector('.affinity-modal').classList.add('affinity-modal-loading');
+        const name = conversationData.sender?.firstName || conversationData.sender?.name?.split(' ')[0] || 'contact';
+        showModalLoading(modalOverlay, `Creating ${name}'s profile...`);
       }
 
       // Add quick note to conversation data
