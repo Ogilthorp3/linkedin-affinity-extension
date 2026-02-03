@@ -226,7 +226,7 @@ function _isConversationItem(element) {
 
   /**
    * Fetch profile data using LinkedIn's internal Voyager API
-   * Returns all companies from work history
+   * Returns full profile data including companies, job titles, location, industry
    */
   async function fetchProfileViaVoyager(linkedinUrl) {
     const username = extractUsernameFromUrl(linkedinUrl);
@@ -261,7 +261,7 @@ function _isConversationItem(element) {
       }
 
       const data = await response.json();
-      return extractCompaniesFromVoyagerResponse(data);
+      return extractProfileFromVoyagerResponse(data);
     } catch (error) {
       console.error('[LinkedIn to Affinity] Error fetching profile via Voyager:', error);
       return null;
@@ -269,43 +269,116 @@ function _isConversationItem(element) {
   }
 
   /**
-   * Extract all companies from Voyager API response
-   * Returns array of company objects with name and other details
+   * Extract full profile data from Voyager API response
+   * Returns object with companies, location, industry, job titles, etc.
    */
-  function extractCompaniesFromVoyagerResponse(data) {
-    const companies = [];
-    const seenCompanies = new Set();
+  function extractProfileFromVoyagerResponse(data) {
+    const result = {
+      companies: [],
+      jobTitles: [],
+      currentJobTitle: null,
+      location: null,
+      industry: null,
+      headline: null
+    };
 
     if (!data || !data.included) {
-      return companies;
+      return result;
     }
 
-    // Look for Position entities in the included array
+    const seenCompanies = new Set();
+    const seenTitles = new Set();
+
+    // Look through all included entities
     for (const item of data.included) {
       const type = item['$type'] || '';
 
-      // Check for position/experience data (various type formats)
+      // Extract position/experience data
       if (type.includes('Position') || type.includes('position')) {
         const companyName = item.companyName || item.company?.name;
+        const jobTitle = item.title;
+
+        // Check if position is current (no end date)
+        const isCurrent = !item.dateRange?.end && !item.timePeriod?.endDate && !item.endDate;
+
+        // Add company
         if (companyName && !seenCompanies.has(companyName.toLowerCase())) {
           seenCompanies.add(companyName.toLowerCase());
-
-          // Check if position is current (no end date)
-          const isCurrent = !item.dateRange?.end && !item.timePeriod?.endDate && !item.endDate;
-
-          companies.push({
+          result.companies.push({
             name: companyName,
-            title: item.title,
+            title: jobTitle,
             isCurrent: isCurrent,
             startDate: item.dateRange?.start || item.timePeriod?.startDate || item.startDate,
             endDate: item.dateRange?.end || item.timePeriod?.endDate || item.endDate
           });
         }
+
+        // Add job title
+        if (jobTitle && !seenTitles.has(jobTitle.toLowerCase())) {
+          seenTitles.add(jobTitle.toLowerCase());
+          result.jobTitles.push(jobTitle);
+
+          // Set current job title
+          if (isCurrent && !result.currentJobTitle) {
+            result.currentJobTitle = jobTitle;
+          }
+        }
+      }
+
+      // Extract profile data (location, industry, headline)
+      if (type.includes('Profile') && !type.includes('Position')) {
+        // Location - try various field names
+        if (!result.location) {
+          result.location = item.geoLocationName ||
+                           item.locationName ||
+                           item.geoLocation?.defaultLocalizedName ||
+                           item.address?.city ||
+                           item.location;
+        }
+
+        // Industry
+        if (!result.industry && item.industryName) {
+          result.industry = item.industryName;
+        }
+        if (!result.industry && item.industry) {
+          result.industry = item.industry.name || item.industry;
+        }
+
+        // Headline
+        if (!result.headline && item.headline) {
+          result.headline = item.headline;
+        }
+      }
+
+      // Also check for GeoLocation entities
+      if (type.includes('Geo') && !result.location) {
+        result.location = item.defaultLocalizedName || item.name;
+      }
+
+      // Check for Industry entities
+      if (type.includes('Industry') && !result.industry) {
+        result.industry = item.name || item.localizedName;
       }
     }
 
-    console.log('[LinkedIn to Affinity] Extracted companies from profile:', companies.map(c => `${c.name} (${c.isCurrent ? 'current' : 'past'})`));
-    return companies;
+    console.log('[LinkedIn to Affinity] Extracted profile data:', {
+      companies: result.companies.length,
+      jobTitles: result.jobTitles,
+      currentJobTitle: result.currentJobTitle,
+      location: result.location,
+      industry: result.industry
+    });
+
+    return result;
+  }
+
+  /**
+   * Extract all companies from Voyager API response (legacy compatibility)
+   * Returns array of company objects with name and other details
+   */
+  function extractCompaniesFromVoyagerResponse(data) {
+    const profile = extractProfileFromVoyagerResponse(data);
+    return profile.companies;
   }
 
   /**
@@ -1587,16 +1660,39 @@ function _isConversationItem(element) {
         }
       }
 
-      // Fetch all companies from LinkedIn profile via Voyager API
+      // Fetch full profile data from LinkedIn via Voyager API
       if (senderInfo.linkedinUrl) {
         try {
-          const companies = await fetchProfileViaVoyager(senderInfo.linkedinUrl);
-          if (companies && companies.length > 0) {
-            senderInfo.allCompanies = companies;
-            console.log('[LinkedIn to Affinity] Found', companies.length, 'companies in work history');
+          const voyagerProfile = await fetchProfileViaVoyager(senderInfo.linkedinUrl);
+          if (voyagerProfile) {
+            // Add companies
+            if (voyagerProfile.companies && voyagerProfile.companies.length > 0) {
+              senderInfo.allCompanies = voyagerProfile.companies;
+              console.log('[LinkedIn to Affinity] Found', voyagerProfile.companies.length, 'companies in work history');
+            }
+            // Add job titles
+            if (voyagerProfile.jobTitles && voyagerProfile.jobTitles.length > 0) {
+              senderInfo.allJobTitles = voyagerProfile.jobTitles;
+            }
+            // Add current job title (prefer Voyager data)
+            if (voyagerProfile.currentJobTitle) {
+              senderInfo.currentJobTitle = voyagerProfile.currentJobTitle;
+            }
+            // Add location (prefer Voyager data if available)
+            if (voyagerProfile.location) {
+              senderInfo.location = voyagerProfile.location;
+            }
+            // Add industry
+            if (voyagerProfile.industry) {
+              senderInfo.industry = voyagerProfile.industry;
+            }
+            // Update headline if available from Voyager
+            if (voyagerProfile.headline && !senderInfo.headline) {
+              senderInfo.headline = voyagerProfile.headline;
+            }
           }
         } catch (error) {
-          console.log('[LinkedIn to Affinity] Could not fetch work history:', error.message);
+          console.log('[LinkedIn to Affinity] Could not fetch profile data:', error.message);
         }
       }
 

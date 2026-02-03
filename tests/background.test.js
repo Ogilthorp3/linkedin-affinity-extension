@@ -544,11 +544,12 @@ describe('checkDuplicateAndGetExistingMessages', () => {
   });
 
   test('returns isDuplicate true when conversation URL found in notes', async () => {
+    // Note format must match formatConversationNote output - includes --- separator before messages
     mockFetchResponse({
       notes: [
         {
           id: 1,
-          content: '## LinkedIn Conversation\n\n**Source:** https://linkedin.com/messaging/thread/123\n\n**John** (time):\nHello world',
+          content: '## LinkedIn Conversation\n\n**Source:** https://linkedin.com/messaging/thread/123\n\n---\n\n**John** (Jan 1, 2024):\nHello world\n\n',
           created_at: '2024-01-15T10:00:00.000Z'
         }
       ]
@@ -565,11 +566,12 @@ describe('checkDuplicateAndGetExistingMessages', () => {
   });
 
   test('extracts multiple message contents from note', async () => {
+    // Note format must match formatConversationNote output - includes --- separator before messages
     mockFetchResponse({
       notes: [
         {
           id: 1,
-          content: '**Source:** https://linkedin.com/messaging/thread/123\n\n**John** (time):\nFirst message\n\n**Jane** (time):\nSecond message',
+          content: '**Source:** https://linkedin.com/messaging/thread/123\n\n---\n\n**John** (Jan 1, 2024):\nFirst message\n\n**Jane** (Jan 1, 2024):\nSecond message\n\n',
           created_at: '2024-01-15T10:00:00.000Z'
         }
       ]

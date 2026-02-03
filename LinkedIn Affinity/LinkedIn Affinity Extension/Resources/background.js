@@ -412,48 +412,84 @@ async function findPersonFields() {
   }
 
   // Map common field names to their definitions
+  // value_type: 0 = Person, 1 = Organization, 2 = Dropdown, 3 = Number, 4 = Date, 5 = Location, 6 = Text, 7 = Ranked Dropdown
   fieldsCache = {
-    // value_type 6 = Text field in Affinity
+    // LinkedIn URL - Text field (value_type 6)
     linkedin: personFields.find(f =>
       (f.name?.toLowerCase() === 'linkedin url' ||
        f.name?.toLowerCase() === 'linkedin profile url' ||
        f.name?.toLowerCase() === 'linkedin') &&
-      f.value_type === 6 // Text type
+      f.value_type === 6
     ),
+    // Headline - Text field (value_type 6)
     headline: personFields.find(f =>
       (f.name?.toLowerCase() === 'linkedin profile headline' ||
        f.name?.toLowerCase() === 'headline' ||
        f.name?.toLowerCase() === 'profile headline') &&
-      f.value_type === 6 // Text type
+      f.value_type === 6
     ),
-    title: personFields.find(f =>
-      (f.name?.toLowerCase() === 'title' ||
+    // Current Job Title - Text field (value_type 6)
+    currentJobTitle: personFields.find(f =>
+      (f.name?.toLowerCase() === 'current job title' ||
        f.name?.toLowerCase() === 'job title' ||
+       f.name?.toLowerCase() === 'current title' ||
+       f.name?.toLowerCase() === 'title' ||
        f.name?.toLowerCase() === 'position' ||
        f.name?.toLowerCase() === 'role') &&
-      f.value_type === 0 // Text type
+      f.value_type === 6
     ),
+    // Job Titles - Text field for all titles (value_type 6)
+    jobTitles: personFields.find(f =>
+      (f.name?.toLowerCase() === 'job titles' ||
+       f.name?.toLowerCase() === 'all job titles' ||
+       f.name?.toLowerCase() === 'past titles' ||
+       f.name?.toLowerCase() === 'positions') &&
+      f.value_type === 6
+    ),
+    // Location - Text or Location field (value_type 5 or 6)
     location: personFields.find(f =>
       (f.name?.toLowerCase() === 'location' ||
        f.name?.toLowerCase() === 'city' ||
-       f.name?.toLowerCase() === 'region') &&
-      f.value_type === 0 // Text type
+       f.name?.toLowerCase() === 'region' ||
+       f.name?.toLowerCase() === 'address') &&
+      (f.value_type === 5 || f.value_type === 6)
     ),
+    // Industry - Text or Dropdown field (value_type 2 or 6)
+    industry: personFields.find(f =>
+      (f.name?.toLowerCase() === 'industry' ||
+       f.name?.toLowerCase() === 'sector') &&
+      (f.value_type === 2 || f.value_type === 6)
+    ),
+    // Phone Number - Text field (value_type 6)
+    phone: personFields.find(f =>
+      (f.name?.toLowerCase() === 'phone number' ||
+       f.name?.toLowerCase() === 'phone' ||
+       f.name?.toLowerCase() === 'mobile' ||
+       f.name?.toLowerCase() === 'cell') &&
+      f.value_type === 6
+    ),
+    // Bio/About - Text field (value_type 6)
     bio: personFields.find(f =>
       (f.name?.toLowerCase() === 'bio' ||
        f.name?.toLowerCase() === 'about' ||
        f.name?.toLowerCase() === 'summary' ||
        f.name?.toLowerCase() === 'description' ||
        f.name?.toLowerCase() === 'notes') &&
-      f.value_type === 0 // Text type
+      f.value_type === 6
     ),
-    // Note: "Source of Introduction" is value_type 0 (Person reference), not text
-    // We can only populate text fields (value_type 6) with arbitrary strings
-    source: personFields.find(f =>
+    // Source of Introduction - Dropdown field (value_type 2)
+    sourceOfIntroduction: personFields.find(f =>
+      (f.name?.toLowerCase() === 'source of introduction' ||
+       f.name?.toLowerCase() === 'introduction source' ||
+       f.name?.toLowerCase() === 'source') &&
+      f.value_type === 2 // Dropdown type
+    ),
+    // Fallback: Source as text field
+    sourceText: personFields.find(f =>
       (f.name?.toLowerCase() === 'source' ||
        f.name?.toLowerCase() === 'lead source' ||
        f.name?.toLowerCase() === 'how we met') &&
-      f.value_type === 6 // Text type only
+      f.value_type === 6 // Text type
     ),
     // Note: "Current Organization" is an Affinity Data enrichment field
     // and cannot be set via API - it's auto-populated by Affinity's system
@@ -463,10 +499,13 @@ async function findPersonFields() {
   console.log('[LinkedIn to Affinity] Found person fields:', {
     linkedin: fieldsCache.linkedin?.name,
     headline: fieldsCache.headline?.name,
-    title: fieldsCache.title?.name,
+    currentJobTitle: fieldsCache.currentJobTitle?.name,
+    jobTitles: fieldsCache.jobTitles?.name,
     location: fieldsCache.location?.name,
-    bio: fieldsCache.bio?.name,
-    source: fieldsCache.source?.name,
+    industry: fieldsCache.industry?.name,
+    phone: fieldsCache.phone?.name,
+    sourceOfIntroduction: fieldsCache.sourceOfIntroduction?.name,
+    sourceText: fieldsCache.sourceText?.name,
     totalFields: personFields.length
   });
 
@@ -474,11 +513,28 @@ async function findPersonFields() {
 }
 
 /**
+ * Find dropdown option ID by name (case-insensitive)
+ */
+function findDropdownOption(field, optionName) {
+  if (!field || !field.dropdown_options || !optionName) return null;
+
+  const lowerName = optionName.toLowerCase();
+  const option = field.dropdown_options.find(opt =>
+    opt.text?.toLowerCase() === lowerName ||
+    opt.text?.toLowerCase().includes(lowerName) ||
+    lowerName.includes(opt.text?.toLowerCase())
+  );
+
+  return option?.id || null;
+}
+
+/**
  * Populate all matching fields for a person
  * @param {number} personId - The Affinity person ID
  * @param {object} profileData - Profile data including linkedinUrl, headline, etc.
+ * @param {boolean} isNewPerson - Whether this is a newly created person
  */
-async function populatePersonFields(personId, profileData) {
+async function populatePersonFields(personId, profileData, isNewPerson = true) {
   const fields = await findPersonFields();
   const results = [];
 
@@ -486,28 +542,56 @@ async function populatePersonFields(personId, profileData) {
   if (fields.linkedin && profileData.linkedinUrl) {
     const result = await addFieldValue(fields.linkedin.id, personId, profileData.linkedinUrl);
     if (result) results.push({ field: 'linkedin', success: true });
-  } else {
   }
 
   // LinkedIn Profile Headline
   if (fields.headline && profileData.headline) {
     const result = await addFieldValue(fields.headline.id, personId, profileData.headline);
     if (result) results.push({ field: 'headline', success: true });
-  } else {
   }
 
-  // Job Title
-  if (fields.title && profileData.title) {
-    const result = await addFieldValue(fields.title.id, personId, profileData.title);
-    if (result) results.push({ field: 'title', success: true });
-  } else {
+  // Current Job Title (prefer currentJobTitle, fall back to title)
+  const currentTitle = profileData.currentJobTitle || profileData.title;
+  if (fields.currentJobTitle && currentTitle) {
+    const result = await addFieldValue(fields.currentJobTitle.id, personId, currentTitle);
+    if (result) results.push({ field: 'currentJobTitle', success: true });
+  }
+
+  // All Job Titles (concatenated)
+  if (fields.jobTitles && profileData.allJobTitles && profileData.allJobTitles.length > 0) {
+    const titlesText = profileData.allJobTitles.join(', ');
+    const result = await addFieldValue(fields.jobTitles.id, personId, titlesText);
+    if (result) results.push({ field: 'jobTitles', success: true });
   }
 
   // Location
   if (fields.location && profileData.location) {
     const result = await addFieldValue(fields.location.id, personId, profileData.location);
     if (result) results.push({ field: 'location', success: true });
-  } else {
+  }
+
+  // Industry
+  if (fields.industry && profileData.industry) {
+    if (fields.industry.value_type === 2) {
+      // Dropdown field - find matching option
+      const optionId = findDropdownOption(fields.industry, profileData.industry);
+      if (optionId) {
+        const result = await addFieldValue(fields.industry.id, personId, optionId);
+        if (result) results.push({ field: 'industry', success: true });
+      } else {
+        console.log('[LinkedIn to Affinity] Industry dropdown option not found:', profileData.industry);
+      }
+    } else {
+      // Text field
+      const result = await addFieldValue(fields.industry.id, personId, profileData.industry);
+      if (result) results.push({ field: 'industry', success: true });
+    }
+  }
+
+  // Phone Number (if available - usually not from LinkedIn)
+  if (fields.phone && profileData.phone) {
+    const result = await addFieldValue(fields.phone.id, personId, profileData.phone);
+    if (result) results.push({ field: 'phone', success: true });
   }
 
   // Bio/About
@@ -518,16 +602,26 @@ async function populatePersonFields(personId, profileData) {
       : profileData.about;
     const result = await addFieldValue(fields.bio.id, personId, bio);
     if (result) results.push({ field: 'bio', success: true });
-  } else {
   }
 
-  // Source (set to LinkedIn)
-  if (fields.source) {
-    // For dropdown fields, we'd need to find the right option
-    // For text fields, just set "LinkedIn"
-    if (fields.source.value_type === 6) {
-      const result = await addFieldValue(fields.source.id, personId, 'LinkedIn');
-      if (result) results.push({ field: 'source', success: true });
+  // Source of Introduction (only for new persons)
+  if (isNewPerson) {
+    // Try dropdown field first
+    if (fields.sourceOfIntroduction) {
+      const optionId = findDropdownOption(fields.sourceOfIntroduction, 'LinkedIn');
+      if (optionId) {
+        const result = await addFieldValue(fields.sourceOfIntroduction.id, personId, optionId);
+        if (result) results.push({ field: 'sourceOfIntroduction', success: true });
+      } else {
+        console.log('[LinkedIn to Affinity] LinkedIn option not found in Source of Introduction dropdown');
+        // Log available options for debugging
+        console.log('[LinkedIn to Affinity] Available options:', fields.sourceOfIntroduction.dropdown_options?.map(o => o.text));
+      }
+    }
+    // Fallback to text field
+    else if (fields.sourceText) {
+      const result = await addFieldValue(fields.sourceText.id, personId, 'LinkedIn');
+      if (result) results.push({ field: 'sourceText', success: true });
     }
   }
 
@@ -552,6 +646,8 @@ async function createPerson(personData) {
     if (profileData) {
 
       // Merge profile data, preferring fetched data over parsed headline data
+      // Note: Voyager API data (allCompanies, allJobTitles, currentJobTitle, industry)
+      // comes from personData via content.js
       enrichedData = {
         ...personData,
         name: profileData.name || personData.name,
@@ -562,7 +658,12 @@ async function createPerson(personData) {
         headline: profileData.headline || personData.headline,
         location: profileData.location || personData.location,
         about: profileData.about,
-        profileImageUrl: profileData.profileImageUrl || personData.profileImageUrl
+        profileImageUrl: profileData.profileImageUrl || personData.profileImageUrl,
+        // Voyager API data from content.js (keep as-is)
+        allCompanies: personData.allCompanies,
+        allJobTitles: personData.allJobTitles,
+        currentJobTitle: personData.currentJobTitle,
+        industry: personData.industry
       };
     } else {
       console.log('[LinkedIn to Affinity] No profile data extracted, using sender data only');
@@ -620,9 +721,9 @@ async function createPerson(personData) {
 
   console.log('[LinkedIn to Affinity] Created person:', person.id, payload.first_name, payload.last_name);
 
-  // Populate all matching custom fields
+  // Populate all matching custom fields (isNewPerson=true to set Source of Introduction)
   if (person.id) {
-    await populatePersonFields(person.id, enrichedData);
+    await populatePersonFields(person.id, enrichedData, true);
   }
 
   // Return enriched person data
