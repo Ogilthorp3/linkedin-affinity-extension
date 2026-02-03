@@ -1119,7 +1119,7 @@ function formatConversationNote(data) {
 
   // Footer
   note += `---\n\n`;
-  note += `🔗 [View on LinkedIn](${conversationUrl})\n`;
+  note += `🔗 **LinkedIn:** ${conversationUrl}\n`;
 
   return note;
 }
@@ -1186,7 +1186,7 @@ function formatDayConversationNote(data, dayKey, dayMessages) {
 
   // Footer
   note += `---\n\n`;
-  note += `🔗 [View on LinkedIn](${conversationUrl})\n`;
+  note += `🔗 **LinkedIn:** ${conversationUrl}\n`;
 
   return note;
 }

@@ -38,7 +38,7 @@ describe('formatConversationNote', () => {
     expect(note).toContain('# 💬 LinkedIn Conversation');
     expect(note).toContain('**John Doe**');
     expect(note).toContain('2 messages');
-    expect(note).toContain('[View on LinkedIn](https://linkedin.com/messaging/thread/123)');
+    expect(note).toContain('**LinkedIn:** https://linkedin.com/messaging/thread/123');
     expect(note).toContain('**◀︎ John Doe**');
     expect(note).toContain('> Hello!');
     expect(note).toContain('**▶︎ Me**');
@@ -56,7 +56,7 @@ describe('formatConversationNote', () => {
     const note = formatConversationNote(data);
 
     expect(note).toContain('**Jane Smith**');
-    expect(note).toContain('[View on LinkedIn]');
+    expect(note).toContain('**LinkedIn:**');
   });
 
   test('handles missing messages', () => {
@@ -484,7 +484,7 @@ describe('extractMessagesFromNote', () => {
 
 ---
 
-🔗 [View on LinkedIn](https://linkedin.com)`;
+🔗 **LinkedIn:** https://linkedin.com`;
 
     const result = extractMessagesFromNote(noteContent);
 
@@ -533,7 +533,7 @@ describe('appendMessagesToNote', () => {
 
 ---
 
-🔗 [View on LinkedIn](https://linkedin.com)`;
+🔗 **LinkedIn:** https://linkedin.com`;
 
     const newMessages = [
       { content: 'Hi back!', isIncoming: false, timestamp: 'Jan 15, 10:35 AM' }
@@ -545,7 +545,7 @@ describe('appendMessagesToNote', () => {
     expect(result).toContain('> Hi back!');
     expect(result).toContain('**▶︎ You**');
     expect(result).toContain('2 messages'); // Updated count
-    expect(result).toContain('🔗 [View on LinkedIn]'); // Footer preserved
+    expect(result).toContain('🔗 **LinkedIn:**'); // Footer preserved
   });
 
   test('returns original content if no new messages', () => {
