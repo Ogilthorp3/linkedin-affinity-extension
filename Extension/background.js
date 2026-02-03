@@ -954,6 +954,106 @@ async function addNote(personId, content) {
 }
 
 /**
+ * Update an existing note in Affinity
+ */
+async function updateNote(noteId, content) {
+  const payload = {
+    content: content
+  };
+
+  const result = await affinityRequest(`/notes/${noteId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+
+  return result;
+}
+
+/**
+ * Parse a message timestamp and extract the day key (YYYY-MM-DD)
+ * Handles various timestamp formats from LinkedIn
+ */
+function parseMessageDay(timestamp) {
+  if (!timestamp) return null;
+
+  const currentYear = new Date().getFullYear();
+
+  // First, check if this looks like a timestamp without a year (e.g., "Jan 15, 10:30 AM")
+  // We detect this by checking if there's no 4-digit year in the string
+  const hasExplicitYear = /\b20\d{2}\b/.test(timestamp);
+
+  if (!hasExplicitYear) {
+    // Try to extract month and day, then use current year
+    const monthDayMatch = timestamp.match(/([A-Za-z]+)\s+(\d{1,2})/);
+    if (monthDayMatch) {
+      const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      const monthIndex = monthNames.indexOf(monthDayMatch[1].toLowerCase().substring(0, 3));
+      if (monthIndex !== -1) {
+        const day = parseInt(monthDayMatch[2], 10);
+        return `${currentYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+  }
+
+  // Try standard date parsing for dates with explicit year
+  const date = new Date(timestamp);
+
+  if (isNaN(date.getTime())) {
+    return null;
+  }
+
+  // Sanity check: year should be reasonable (2020-2100)
+  const parsedYear = date.getFullYear();
+  if (parsedYear < 2020 || parsedYear > 2100) {
+    return null;
+  }
+
+  return date.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+/**
+ * Group messages by day
+ * Returns a Map of dayKey -> messages array, sorted by date (oldest first)
+ */
+function groupMessagesByDay(messages) {
+  if (!messages || messages.length === 0) return new Map();
+
+  const groups = new Map();
+
+  messages.forEach(msg => {
+    const dayKey = parseMessageDay(msg.timestamp) || 'unknown';
+    if (!groups.has(dayKey)) {
+      groups.set(dayKey, []);
+    }
+    groups.get(dayKey).push(msg);
+  });
+
+  // Sort by day (oldest first) and return
+  const sortedEntries = [...groups.entries()].sort((a, b) => {
+    if (a[0] === 'unknown') return 1;
+    if (b[0] === 'unknown') return -1;
+    return a[0].localeCompare(b[0]);
+  });
+
+  return new Map(sortedEntries);
+}
+
+/**
+ * Format day key for display (YYYY-MM-DD -> "Mon, Jan 15, 2024")
+ */
+function formatDayKeyForDisplay(dayKey) {
+  if (dayKey === 'unknown') return 'Unknown Date';
+
+  const date = new Date(dayKey + 'T12:00:00'); // Add time to avoid timezone issues
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+/**
  * Format the LinkedIn conversation as a note
  * Note: Profile data (title, company, location, etc.) is now stored in Affinity fields,
  * so the note only contains the conversation and any user-added context.
@@ -1025,6 +1125,193 @@ function formatConversationNote(data) {
 }
 
 /**
+ * Format a day-specific conversation note
+ * Used for grouping messages by day
+ */
+function formatDayConversationNote(data, dayKey, dayMessages) {
+  const { sender, conversationUrl, quickNote, tags } = data;
+
+  const senderName = sender.name || 'Unknown';
+  const messageCount = dayMessages?.length || 0;
+  const dateFormatted = formatDayKeyForDisplay(dayKey);
+
+  // Build the note with clean formatting
+  let note = '';
+
+  // Header with day marker for identification
+  note += `# 💬 LinkedIn Conversation\n\n`;
+  note += `**${senderName}** · ${dateFormatted} · ${messageCount} message${messageCount !== 1 ? 's' : ''}\n\n`;
+
+  // Hidden day marker for identification (used for finding/updating notes)
+  note += `<!-- day:${dayKey} thread:${conversationUrl} -->\n\n`;
+
+  // Tags section (if any) - only on first day or if explicitly set
+  if (tags && tags.length > 0) {
+    note += `---\n\n`;
+    note += `🏷️ **Tags:** ${tags.join(', ')}\n\n`;
+  }
+
+  // Quick note section (if any) - only on first day or if explicitly set
+  if (quickNote) {
+    note += `---\n\n`;
+    note += `📝 **Note:**\n> ${quickNote}\n\n`;
+  }
+
+  // Conversation section
+  if (dayMessages && dayMessages.length > 0) {
+    note += `---\n\n`;
+    note += `### Conversation\n\n`;
+
+    dayMessages.forEach((msg) => {
+      const isIncoming = msg.isIncoming;
+      const arrow = isIncoming ? '◀︎' : '▶︎';
+      const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
+      const timestamp = msg.timestamp || '';
+
+      // Message header with arrow indicator
+      note += `**${arrow} ${senderLabel}**`;
+      if (timestamp) {
+        note += ` · _${timestamp}_`;
+      }
+      note += `\n`;
+
+      // Message content as blockquote for visual distinction
+      const contentLines = (msg.content || '').split('\n');
+      contentLines.forEach(line => {
+        note += `> ${line}\n`;
+      });
+      note += `\n`;
+    });
+  }
+
+  // Footer
+  note += `---\n\n`;
+  note += `🔗 [View on LinkedIn](${conversationUrl})\n`;
+
+  return note;
+}
+
+/**
+ * Extract existing messages from a note's content
+ */
+function extractMessagesFromNote(noteContent) {
+  const messages = new Set();
+
+  if (!noteContent) return messages;
+
+  // Find the conversation section
+  const conversationStart = noteContent.indexOf('### Conversation');
+  if (conversationStart === -1) return messages;
+
+  const conversationSection = noteContent.substring(conversationStart);
+
+  // Extract message content from blockquotes
+  // Pattern: lines starting with > after a message header
+  const lines = conversationSection.split('\n');
+  let currentMessage = '';
+  let inMessage = false;
+
+  for (const line of lines) {
+    if (line.startsWith('**◀︎') || line.startsWith('**▶︎')) {
+      // Save previous message if exists
+      if (currentMessage.trim()) {
+        messages.add(currentMessage.trim());
+      }
+      currentMessage = '';
+      inMessage = true;
+    } else if (line.startsWith('> ') && inMessage) {
+      currentMessage += (currentMessage ? '\n' : '') + line.substring(2);
+    } else if (line.startsWith('---') || line.startsWith('🔗')) {
+      // End of conversation section
+      if (currentMessage.trim()) {
+        messages.add(currentMessage.trim());
+      }
+      break;
+    }
+  }
+
+  // Don't forget the last message
+  if (currentMessage.trim()) {
+    messages.add(currentMessage.trim());
+  }
+
+  return messages;
+}
+
+/**
+ * Append messages to an existing note
+ * Returns the updated note content
+ */
+function appendMessagesToNote(existingContent, newMessages, senderName) {
+  if (!newMessages || newMessages.length === 0) return existingContent;
+
+  // Find the footer section to insert before it
+  const footerIndex = existingContent.lastIndexOf('---\n\n🔗');
+
+  if (footerIndex === -1) {
+    // No footer found, just append
+    let appendContent = '\n';
+    newMessages.forEach(msg => {
+      const isIncoming = msg.isIncoming;
+      const arrow = isIncoming ? '◀︎' : '▶︎';
+      const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
+      const timestamp = msg.timestamp || '';
+
+      appendContent += `**${arrow} ${senderLabel}**`;
+      if (timestamp) {
+        appendContent += ` · _${timestamp}_`;
+      }
+      appendContent += `\n`;
+
+      const contentLines = (msg.content || '').split('\n');
+      contentLines.forEach(line => {
+        appendContent += `> ${line}\n`;
+      });
+      appendContent += `\n`;
+    });
+    return existingContent + appendContent;
+  }
+
+  // Insert new messages before the footer
+  const beforeFooter = existingContent.substring(0, footerIndex);
+  const footer = existingContent.substring(footerIndex);
+
+  let newMessagesContent = '';
+  newMessages.forEach(msg => {
+    const isIncoming = msg.isIncoming;
+    const arrow = isIncoming ? '◀︎' : '▶︎';
+    const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
+    const timestamp = msg.timestamp || '';
+
+    newMessagesContent += `**${arrow} ${senderLabel}**`;
+    if (timestamp) {
+      newMessagesContent += ` · _${timestamp}_`;
+    }
+    newMessagesContent += `\n`;
+
+    const contentLines = (msg.content || '').split('\n');
+    contentLines.forEach(line => {
+      newMessagesContent += `> ${line}\n`;
+    });
+    newMessagesContent += `\n`;
+  });
+
+  // Update the message count in header
+  let updatedBefore = beforeFooter;
+  const messageCountMatch = updatedBefore.match(/(\d+) message/);
+  if (messageCountMatch) {
+    const oldCount = parseInt(messageCountMatch[1], 10);
+    const newCount = oldCount + newMessages.length;
+    updatedBefore = updatedBefore.replace(
+      /(\d+) messages?/,
+      `${newCount} message${newCount !== 1 ? 's' : ''}`
+    );
+  }
+
+  return updatedBefore + newMessagesContent + footer;
+}
+
+/**
  * Get notes for a person from Affinity
  */
 async function getNotesForPerson(personId) {
@@ -1063,12 +1350,14 @@ function normalizeLinkedInUrl(url) {
 
 /**
  * Check if a conversation has already been sent to Affinity and extract existing messages
+ * Returns notes grouped by day for the day-based workflow
  */
 async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
   try {
     // Get notes for this person from Affinity
     const notes = await getNotesForPerson(personId);
     const existingMessageContents = new Set();
+    const notesByDay = new Map(); // dayKey -> { noteId, content, messages }
     let latestNoteDate = null;
     let foundConversation = false;
 
@@ -1087,19 +1376,17 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
         continue;
       }
 
-      // Check for URL match (normalized) or thread ID match
+      // Check for URL match (normalized) or thread ID match or day marker
       const noteNormalizedUrls = note.content.match(/https:\/\/www\.linkedin\.com\/messaging\/[^\s)]+/g) || [];
-      console.log('[LinkedIn to Affinity] Note', note.id, '- URLs found in note:', noteNormalizedUrls);
+      const dayMarkerMatch = note.content.match(/<!-- day:(\d{4}-\d{2}-\d{2}) thread:([^\s]+) -->/);
 
       const urlMatches = noteNormalizedUrls.some(noteUrl => {
         const normalizedNoteUrl = normalizeLinkedInUrl(noteUrl);
-        console.log('[LinkedIn to Affinity] Comparing:', normalizedNoteUrl, 'vs', normalizedUrl, '=', normalizedNoteUrl === normalizedUrl);
         return normalizedNoteUrl === normalizedUrl;
       });
 
       // Also check thread ID as fallback
-      const threadIdMatches = threadId && note.content.includes(threadId);
-      console.log('[LinkedIn to Affinity] Note', note.id, '- urlMatches:', urlMatches, 'threadIdMatches:', threadIdMatches);
+      const threadIdMatches = threadId && (note.content.includes(threadId) || (dayMarkerMatch && dayMarkerMatch[2].includes(threadId)));
 
       if (urlMatches || threadIdMatches) {
         foundConversation = true;
@@ -1113,38 +1400,62 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
           }
         }
 
-        // Extract message contents from the note to avoid re-sending
-        // Find the part after "---" which contains the messages
+        // Extract day key from note (from day marker or created_at)
+        let dayKey = null;
+        if (dayMarkerMatch) {
+          dayKey = dayMarkerMatch[1];
+        } else if (note.created_at) {
+          dayKey = note.created_at.split('T')[0];
+        }
+
+        // Extract messages from this note using the new format
+        const noteMessages = extractMessagesFromNote(note.content);
+
+        // Add to notesByDay map
+        if (dayKey) {
+          notesByDay.set(dayKey, {
+            noteId: note.id,
+            content: note.content,
+            messages: noteMessages
+          });
+          console.log('[LinkedIn to Affinity] Note', note.id, 'is for day:', dayKey, 'with', noteMessages.size, 'messages');
+        }
+
+        // Also add to global existing messages set (for backwards compatibility)
+        noteMessages.forEach(msg => existingMessageContents.add(msg));
+
+        // Fallback: also try old format extraction
         const separatorIdx = note.content.indexOf('---');
         if (separatorIdx > 0) {
           const messageSection = note.content.substring(separatorIdx);
-
-          // Pattern: ):\n\n followed by content (timestamp ends with ): then double newline)
           const messagePattern = /\):\n+([^\n]+)/g;
           let match;
-
           while ((match = messagePattern.exec(messageSection)) !== null) {
             const content = match[1].trim();
-            if (content && content !== '_No messages extracted_' && content !== '---') {
+            if (content && content !== '_No messages extracted_' && content !== '---' && !content.startsWith('>')) {
               existingMessageContents.add(content);
-              console.log('[LinkedIn to Affinity] Found existing message:', content.substring(0, 50));
             }
           }
         }
       }
     }
 
-    console.log('[LinkedIn to Affinity] Duplicate check result:', { isDuplicate: foundConversation, existingMessages: existingMessageContents.size });
+    console.log('[LinkedIn to Affinity] Duplicate check result:', {
+      isDuplicate: foundConversation,
+      existingMessages: existingMessageContents.size,
+      daysFound: notesByDay.size
+    });
 
     return {
       isDuplicate: foundConversation,
       sentAt: latestNoteDate?.toISOString() || null,
-      existingMessageContents: existingMessageContents
+      existingMessageContents: existingMessageContents,
+      notesByDay: notesByDay
     };
   } catch (error) {
     console.error('[LinkedIn to Affinity] Error checking duplicate:', error);
     // On error, allow sending (fail open)
-    return { isDuplicate: false, existingMessageContents: new Set() };
+    return { isDuplicate: false, existingMessageContents: new Set(), notesByDay: new Map() };
   }
 }
 
@@ -1224,16 +1535,18 @@ async function sendToAffinity(data) {
 
 /**
  * Send conversation to a specific person (after user selection)
+ * Groups messages by day and creates/updates notes accordingly
  * @param {boolean} forceSend - If true, skip duplicate check
  */
 async function sendToAffinityWithPerson(personId, conversationData, forceSend = false) {
   console.log('[LinkedIn to Affinity] sendToAffinityWithPerson - personId:', personId, 'forceSend:', forceSend);
 
-  // Check for duplicate (unless force sending)
-  // Check for existing messages and filter out already-sent ones
+  const senderName = conversationData.sender?.name || 'Unknown';
+
+  // Check for existing messages and get notes by day
   const duplicateCheck = await checkDuplicateAndGetExistingMessages(conversationData.conversationUrl, personId);
 
-  // Filter to only new messages
+  // Filter to only new messages (not already in any note)
   const originalMessages = conversationData.messages || [];
   const newMessages = filterNewMessages(originalMessages, duplicateCheck.existingMessageContents);
 
@@ -1254,20 +1567,82 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
     };
   }
 
-  // If no new messages at all (even for new conversation), don't send empty note
-  if (newMessages.length === 0 && originalMessages.length === 0) {
-    // Still allow sending contact info without messages
+  // If no new messages at all, just return success with 0 count
+  if (newMessages.length === 0) {
+    // Apply tags if provided (for existing contacts)
+    const tags = conversationData.tags || [];
+    if (tags.length > 0) {
+      console.log('[LinkedIn to Affinity] Applying tags to existing contact:', tags);
+      await populatePersonFields(personId, conversationData.sender || {}, false, tags);
+    }
+    return {
+      success: true,
+      personId: personId,
+      isNewPerson: false,
+      newMessageCount: 0
+    };
   }
 
-  // Create note with only new messages
-  const dataWithNewMessages = {
-    ...conversationData,
-    messages: newMessages
+  // Group new messages by day
+  const messagesByDay = groupMessagesByDay(newMessages);
+  console.log('[LinkedIn to Affinity] Messages grouped into', messagesByDay.size, 'day(s)');
+
+  const results = {
+    notesCreated: 0,
+    notesUpdated: 0,
+    totalNewMessages: 0
   };
 
-  const noteContent = formatConversationNote(dataWithNewMessages);
-  const note = await addNote(personId, noteContent);
-  console.log('[LinkedIn to Affinity] Added note with', newMessages.length, 'new message(s)');
+  // Process each day
+  for (const [dayKey, dayMessages] of messagesByDay) {
+    console.log('[LinkedIn to Affinity] Processing day:', dayKey, 'with', dayMessages.length, 'messages');
+
+    // Check if there's an existing note for this day
+    const existingDayNote = duplicateCheck.notesByDay.get(dayKey);
+
+    if (existingDayNote) {
+      // Append to existing note
+      console.log('[LinkedIn to Affinity] Found existing note for day', dayKey, '- appending', dayMessages.length, 'messages');
+
+      // Filter out any messages that might already be in this specific note
+      const existingDayMessages = existingDayNote.messages || new Set();
+      const normalizedExisting = new Set(
+        Array.from(existingDayMessages).map(msg => normalizeMessageContent(msg))
+      );
+
+      const trulyNewMessages = dayMessages.filter(msg => {
+        const normalized = normalizeMessageContent(msg.content);
+        return !normalizedExisting.has(normalized);
+      });
+
+      if (trulyNewMessages.length > 0) {
+        const updatedContent = appendMessagesToNote(existingDayNote.content, trulyNewMessages, senderName);
+        await updateNote(existingDayNote.noteId, updatedContent);
+        results.notesUpdated++;
+        results.totalNewMessages += trulyNewMessages.length;
+        console.log('[LinkedIn to Affinity] Updated note', existingDayNote.noteId, 'with', trulyNewMessages.length, 'new messages');
+      } else {
+        console.log('[LinkedIn to Affinity] No truly new messages for day', dayKey);
+      }
+    } else {
+      // Create new note for this day
+      console.log('[LinkedIn to Affinity] Creating new note for day', dayKey);
+
+      // Only include tags and quickNote on first/earliest day
+      const isFirstDay = dayKey === [...messagesByDay.keys()][0];
+      const dayData = {
+        ...conversationData,
+        tags: isFirstDay ? conversationData.tags : [],
+        quickNote: isFirstDay ? conversationData.quickNote : ''
+      };
+
+      const noteContent = formatDayConversationNote(dayData, dayKey, dayMessages);
+      const note = await addNote(personId, noteContent);
+      results.notesCreated++;
+      results.totalNewMessages += dayMessages.length;
+      console.log('[LinkedIn to Affinity] Created note', note.id, 'for day', dayKey, 'with', dayMessages.length, 'messages');
+    }
+  }
 
   // Apply tags if provided (for existing contacts)
   const tags = conversationData.tags || [];
@@ -1279,14 +1654,16 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
   return {
     success: true,
     personId: personId,
-    noteId: note.id,
     isNewPerson: false,
-    newMessageCount: newMessages.length
+    newMessageCount: results.totalNewMessages,
+    notesCreated: results.notesCreated,
+    notesUpdated: results.notesUpdated
   };
 }
 
 /**
  * Create a new person and send conversation to them
+ * Groups messages by day for clean organization
  */
 async function createPersonAndSend(senderData, conversationData, tags = []) {
   console.log('[LinkedIn to Affinity] Creating person with sender data - name:', senderData.name,
@@ -1297,16 +1674,54 @@ async function createPersonAndSend(senderData, conversationData, tags = []) {
   const person = await createPerson(senderData, tags);
   console.log('[LinkedIn to Affinity] Created new person:', person.id);
 
-  const noteContent = formatConversationNote(conversationData);
-  const note = await addNote(person.id, noteContent);
-  console.log('[LinkedIn to Affinity] Added note:', note.id);
+  // Group messages by day
+  const messages = conversationData.messages || [];
+  const messagesByDay = groupMessagesByDay(messages);
+
+  let totalMessages = 0;
+  let notesCreated = 0;
+  let firstNoteId = null;
+
+  if (messagesByDay.size === 0) {
+    // No messages - create a single note with contact info
+    const noteContent = formatConversationNote({ ...conversationData, tags });
+    const note = await addNote(person.id, noteContent);
+    firstNoteId = note.id;
+    notesCreated = 1;
+    console.log('[LinkedIn to Affinity] Added note:', note.id);
+  } else {
+    // Create a note for each day
+    let isFirst = true;
+    for (const [dayKey, dayMessages] of messagesByDay) {
+      // Only include tags and quickNote on first day
+      const dayData = {
+        ...conversationData,
+        tags: isFirst ? tags : [],
+        quickNote: isFirst ? conversationData.quickNote : ''
+      };
+
+      const noteContent = formatDayConversationNote(dayData, dayKey, dayMessages);
+      const note = await addNote(person.id, noteContent);
+
+      if (isFirst) {
+        firstNoteId = note.id;
+        isFirst = false;
+      }
+
+      totalMessages += dayMessages.length;
+      notesCreated++;
+      console.log('[LinkedIn to Affinity] Added note for day', dayKey, ':', note.id, 'with', dayMessages.length, 'messages');
+    }
+  }
 
   return {
     success: true,
     personId: person.id,
-    noteId: note.id,
+    noteId: firstNoteId,
     isNewPerson: true,
-    personName: `${person.first_name} ${person.last_name}`.trim()
+    personName: `${person.first_name} ${person.last_name}`.trim(),
+    newMessageCount: totalMessages,
+    notesCreated: notesCreated
   };
 }
 
@@ -1429,8 +1844,15 @@ console.log('[LinkedIn to Affinity] Background service worker loaded');
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     formatConversationNote,
+    formatDayConversationNote,
     filterNewMessages,
     normalizeMessageContent,
+    parseMessageDay,
+    groupMessagesByDay,
+    formatDayKeyForDisplay,
+    extractMessagesFromNote,
+    appendMessagesToNote,
+    updateNote,
     getApiKey,
     affinityRequest,
     searchPerson,

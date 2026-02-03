@@ -370,6 +370,233 @@ describe('normalizeMessageContent', () => {
   });
 });
 
+describe('parseMessageDay', () => {
+  const { parseMessageDay } = require('../Extension/background.js');
+
+  test('parses ISO date string', () => {
+    expect(parseMessageDay('2024-01-15T10:30:00.000Z')).toBe('2024-01-15');
+  });
+
+  test('parses date with time', () => {
+    expect(parseMessageDay('2024-01-15 10:30 AM')).toBe('2024-01-15');
+  });
+
+  test('parses month day format with year', () => {
+    expect(parseMessageDay('Jan 15, 2024 10:30 AM')).toBe('2024-01-15');
+  });
+
+  test('parses month day format without year (assumes current year)', () => {
+    const currentYear = new Date().getFullYear();
+    const result = parseMessageDay('Jan 15, 10:30 AM');
+    expect(result).toBe(`${currentYear}-01-15`);
+  });
+
+  test('returns null for empty/null timestamp', () => {
+    expect(parseMessageDay('')).toBe(null);
+    expect(parseMessageDay(null)).toBe(null);
+    expect(parseMessageDay(undefined)).toBe(null);
+  });
+});
+
+describe('groupMessagesByDay', () => {
+  const { groupMessagesByDay } = require('../Extension/background.js');
+
+  test('groups messages by day', () => {
+    const messages = [
+      { content: 'Hello', timestamp: '2024-01-15 10:30 AM' },
+      { content: 'Hi', timestamp: '2024-01-15 11:30 AM' },
+      { content: 'How are you?', timestamp: '2024-01-16 09:00 AM' }
+    ];
+
+    const result = groupMessagesByDay(messages);
+
+    expect(result.size).toBe(2);
+    expect(result.get('2024-01-15').length).toBe(2);
+    expect(result.get('2024-01-16').length).toBe(1);
+  });
+
+  test('sorts days oldest first', () => {
+    const messages = [
+      { content: 'Later', timestamp: '2024-01-20 10:00 AM' },
+      { content: 'First', timestamp: '2024-01-10 10:00 AM' },
+      { content: 'Middle', timestamp: '2024-01-15 10:00 AM' }
+    ];
+
+    const result = groupMessagesByDay(messages);
+    const days = [...result.keys()];
+
+    expect(days[0]).toBe('2024-01-10');
+    expect(days[1]).toBe('2024-01-15');
+    expect(days[2]).toBe('2024-01-20');
+  });
+
+  test('handles messages without timestamps', () => {
+    const messages = [
+      { content: 'No timestamp' },
+      { content: 'With timestamp', timestamp: '2024-01-15 10:00 AM' }
+    ];
+
+    const result = groupMessagesByDay(messages);
+
+    expect(result.size).toBe(2);
+    expect(result.has('unknown')).toBe(true);
+    expect(result.has('2024-01-15')).toBe(true);
+  });
+
+  test('returns empty Map for empty messages', () => {
+    expect(groupMessagesByDay([]).size).toBe(0);
+    expect(groupMessagesByDay(null).size).toBe(0);
+  });
+});
+
+describe('formatDayKeyForDisplay', () => {
+  const { formatDayKeyForDisplay } = require('../Extension/background.js');
+
+  test('formats date key for display', () => {
+    const result = formatDayKeyForDisplay('2024-01-15');
+    expect(result).toContain('Jan');
+    expect(result).toContain('15');
+    expect(result).toContain('2024');
+  });
+
+  test('handles unknown date', () => {
+    expect(formatDayKeyForDisplay('unknown')).toBe('Unknown Date');
+  });
+});
+
+describe('extractMessagesFromNote', () => {
+  const { extractMessagesFromNote } = require('../Extension/background.js');
+
+  test('extracts messages from note with new format', () => {
+    const noteContent = `# 💬 LinkedIn Conversation
+
+**John Doe** · Mon, Jan 15, 2024 · 2 messages
+
+---
+
+### Conversation
+
+**◀︎ John Doe** · _Jan 15, 10:30 AM_
+> Hello there!
+
+**▶︎ You** · _Jan 15, 10:35 AM_
+> Hi John!
+
+---
+
+🔗 [View on LinkedIn](https://linkedin.com)`;
+
+    const result = extractMessagesFromNote(noteContent);
+
+    expect(result.size).toBe(2);
+    expect(result.has('Hello there!')).toBe(true);
+    expect(result.has('Hi John!')).toBe(true);
+  });
+
+  test('handles multiline messages', () => {
+    const noteContent = `### Conversation
+
+**◀︎ John Doe**
+> Line 1
+> Line 2
+> Line 3
+
+---`;
+
+    const result = extractMessagesFromNote(noteContent);
+
+    expect(result.size).toBe(1);
+    expect(result.has('Line 1\nLine 2\nLine 3')).toBe(true);
+  });
+
+  test('returns empty set for note without conversation section', () => {
+    const noteContent = '# Some other note\n\nNo conversation here.';
+    const result = extractMessagesFromNote(noteContent);
+    expect(result.size).toBe(0);
+  });
+});
+
+describe('appendMessagesToNote', () => {
+  const { appendMessagesToNote } = require('../Extension/background.js');
+
+  test('appends messages before footer', () => {
+    const existingContent = `# 💬 LinkedIn Conversation
+
+**John** · Mon, Jan 15, 2024 · 1 message
+
+---
+
+### Conversation
+
+**◀︎ John**
+> Hello!
+
+---
+
+🔗 [View on LinkedIn](https://linkedin.com)`;
+
+    const newMessages = [
+      { content: 'Hi back!', isIncoming: false, timestamp: 'Jan 15, 10:35 AM' }
+    ];
+
+    const result = appendMessagesToNote(existingContent, newMessages, 'John');
+
+    expect(result).toContain('> Hello!');
+    expect(result).toContain('> Hi back!');
+    expect(result).toContain('**▶︎ You**');
+    expect(result).toContain('2 messages'); // Updated count
+    expect(result).toContain('🔗 [View on LinkedIn]'); // Footer preserved
+  });
+
+  test('returns original content if no new messages', () => {
+    const existingContent = 'Some content';
+    const result = appendMessagesToNote(existingContent, [], 'John');
+    expect(result).toBe('Some content');
+  });
+});
+
+describe('formatDayConversationNote', () => {
+  const { formatDayConversationNote } = require('../Extension/background.js');
+
+  test('formats day-specific note with day marker', () => {
+    const data = {
+      sender: { name: 'John Doe' },
+      conversationUrl: 'https://linkedin.com/messaging/thread/123',
+      tags: ['Founder'],
+      quickNote: 'Great call!'
+    };
+    const dayMessages = [
+      { content: 'Hello!', isIncoming: true, timestamp: 'Jan 15, 10:30 AM' }
+    ];
+
+    const result = formatDayConversationNote(data, '2024-01-15', dayMessages);
+
+    expect(result).toContain('# 💬 LinkedIn Conversation');
+    expect(result).toContain('**John Doe**');
+    expect(result).toContain('<!-- day:2024-01-15 thread:');
+    expect(result).toContain('🏷️ **Tags:** Founder');
+    expect(result).toContain('📝 **Note:**');
+    expect(result).toContain('> Great call!');
+    expect(result).toContain('**◀︎ John Doe**');
+    expect(result).toContain('> Hello!');
+  });
+
+  test('omits tags and note sections when empty', () => {
+    const data = {
+      sender: { name: 'Jane' },
+      conversationUrl: 'https://linkedin.com/messaging/thread/456',
+      tags: [],
+      quickNote: ''
+    };
+    const dayMessages = [{ content: 'Hi', isIncoming: true }];
+
+    const result = formatDayConversationNote(data, '2024-01-16', dayMessages);
+
+    expect(result).not.toContain('🏷️ **Tags:**');
+    expect(result).not.toContain('📝 **Note:**');
+  });
+});
+
 describe('getApiKey', () => {
   test('returns API key from sync storage', async () => {
     global.browser.storage.sync._setData({ affinityApiKey: 'test-api-key-123' });
