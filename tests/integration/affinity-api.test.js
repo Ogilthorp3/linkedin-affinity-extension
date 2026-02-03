@@ -128,6 +128,27 @@ async function getPersonFields() {
   return await affinityRequest('/persons/fields');
 }
 
+/**
+ * Add a field value to a person
+ */
+async function addFieldValue(fieldId, personId, value) {
+  return await affinityRequest('/field-values', {
+    method: 'POST',
+    body: JSON.stringify({
+      field_id: fieldId,
+      entity_id: personId,
+      value: value
+    })
+  });
+}
+
+/**
+ * Get field values for a person
+ */
+async function getFieldValuesForPerson(personId) {
+  return await affinityRequest(`/field-values?person_id=${personId}`);
+}
+
 // Skip all tests if no API key
 const describeIfApiKey = API_KEY ? describe : describe.skip;
 
@@ -311,6 +332,134 @@ describeIfApiKey('Affinity API Integration Tests', () => {
       });
 
       console.log('  Field types distribution:', fieldTypes);
+    });
+  });
+
+  describe('Field Population', () => {
+    let testPerson;
+    let personFields;
+
+    beforeAll(async () => {
+      // Create a test person and get field definitions
+      const timestamp = Date.now();
+      testPerson = await createPerson(
+        `${TEST_PREFIX} Fields`,
+        `Test ${timestamp}`
+      );
+
+      personFields = await getPersonFields();
+    });
+
+    test('should find key field definitions', async () => {
+      // Check for common field names we need
+      const fieldNames = personFields.map(f => f.name.toLowerCase());
+
+      console.log('  Available field names:');
+      personFields.forEach(f => {
+        const dropdownInfo = f.dropdown_options ? ` (${f.dropdown_options.length} options)` : '';
+        console.log(`    - ${f.name} (type: ${getValueTypeName(f.value_type)})${dropdownInfo}`);
+      });
+
+      // Log which fields we found for the extension
+      const extensionFields = {
+        linkedin: personFields.find(f => f.name.toLowerCase().includes('linkedin') && f.value_type === 6),
+        headline: personFields.find(f => f.name.toLowerCase().includes('headline') && f.value_type === 6),
+        currentJobTitle: personFields.find(f =>
+          (f.name.toLowerCase().includes('job title') || f.name.toLowerCase() === 'title') && f.value_type === 6),
+        jobTitles: personFields.find(f => f.name.toLowerCase() === 'job titles' && f.value_type === 6),
+        location: personFields.find(f => f.name.toLowerCase() === 'location' && (f.value_type === 5 || f.value_type === 6)),
+        industry: personFields.find(f => f.name.toLowerCase() === 'industry'),
+        phone: personFields.find(f => f.name.toLowerCase().includes('phone') && f.value_type === 6),
+        sourceOfIntroduction: personFields.find(f =>
+          f.name.toLowerCase().includes('source') && f.value_type === 2)
+      };
+
+      console.log('\n  Extension field mapping:');
+      Object.entries(extensionFields).forEach(([key, field]) => {
+        if (field) {
+          const typeInfo = field.value_type === 2
+            ? ` [dropdown: ${field.dropdown_options?.map(o => o.text).join(', ')}]`
+            : '';
+          console.log(`    ${key}: ${field.name} (id: ${field.id})${typeInfo}`);
+        } else {
+          console.log(`    ${key}: NOT FOUND`);
+        }
+      });
+    });
+
+    test('should populate text field (LinkedIn URL)', async () => {
+      const linkedinField = personFields.find(f =>
+        f.name.toLowerCase().includes('linkedin') && f.value_type === 6
+      );
+
+      if (!linkedinField) {
+        console.log('  SKIP: No LinkedIn URL text field found');
+        return;
+      }
+
+      const testUrl = 'https://www.linkedin.com/in/test-user-12345';
+      const result = await addFieldValue(linkedinField.id, testPerson.id, testUrl);
+
+      expect(result).toBeDefined();
+      expect(result.value).toBe(testUrl);
+      console.log(`  Set LinkedIn URL field (${linkedinField.name}): ${testUrl}`);
+    });
+
+    test('should populate dropdown field (Source of Introduction)', async () => {
+      const sourceField = personFields.find(f =>
+        f.name.toLowerCase().includes('source') && f.value_type === 2
+      );
+
+      if (!sourceField) {
+        console.log('  SKIP: No Source dropdown field found');
+        return;
+      }
+
+      // Find LinkedIn option in dropdown
+      const linkedinOption = sourceField.dropdown_options?.find(opt =>
+        opt.text.toLowerCase().includes('linkedin')
+      );
+
+      if (!linkedinOption) {
+        console.log(`  SKIP: No LinkedIn option in Source dropdown. Available: ${sourceField.dropdown_options?.map(o => o.text).join(', ')}`);
+        return;
+      }
+
+      const result = await addFieldValue(sourceField.id, testPerson.id, linkedinOption.id);
+
+      expect(result).toBeDefined();
+      expect(result.value).toBe(linkedinOption.id);
+      console.log(`  Set Source of Introduction: ${linkedinOption.text} (option id: ${linkedinOption.id})`);
+    });
+
+    test('should populate location field', async () => {
+      const locationField = personFields.find(f =>
+        f.name.toLowerCase() === 'location' && (f.value_type === 5 || f.value_type === 6)
+      );
+
+      if (!locationField) {
+        console.log('  SKIP: No Location field found');
+        return;
+      }
+
+      const testLocation = 'San Francisco, CA';
+      const result = await addFieldValue(locationField.id, testPerson.id, testLocation);
+
+      expect(result).toBeDefined();
+      console.log(`  Set Location field (${locationField.name}): ${testLocation}`);
+    });
+
+    test('should retrieve populated field values', async () => {
+      const fieldValues = await getFieldValuesForPerson(testPerson.id);
+
+      console.log(`  Person ${testPerson.id} has ${fieldValues.length} field values:`);
+      fieldValues.forEach(fv => {
+        const field = personFields.find(f => f.id === fv.field_id);
+        const fieldName = field?.name || `Field ${fv.field_id}`;
+        console.log(`    - ${fieldName}: ${fv.value}`);
+      });
+
+      expect(Array.isArray(fieldValues)).toBe(true);
     });
   });
 
