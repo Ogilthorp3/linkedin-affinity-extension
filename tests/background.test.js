@@ -35,13 +35,14 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('## LinkedIn Conversation');
-    expect(note).toContain('**With:** John Doe');
-    expect(note).toContain('**Source:** https://linkedin.com/messaging/thread/123');
-    expect(note).toContain('**John Doe** (2024-01-15 10:30 AM):');
-    expect(note).toContain('Hello!');
-    expect(note).toContain('**Me** (2024-01-15 10:35 AM):');
-    expect(note).toContain('Hi there!');
+    expect(note).toContain('# 💬 LinkedIn Conversation');
+    expect(note).toContain('**John Doe**');
+    expect(note).toContain('2 messages');
+    expect(note).toContain('[View on LinkedIn](https://linkedin.com/messaging/thread/123)');
+    expect(note).toContain('**◀︎ John Doe**');
+    expect(note).toContain('> Hello!');
+    expect(note).toContain('**▶︎ Me**');
+    expect(note).toContain('> Hi there!');
   });
 
   test('handles missing sender headline', () => {
@@ -54,8 +55,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('**With:** Jane Smith');
-    expect(note).toContain('**Source:**');
+    expect(note).toContain('**Jane Smith**');
+    expect(note).toContain('[View on LinkedIn]');
   });
 
   test('handles missing messages', () => {
@@ -69,8 +70,9 @@ describe('formatConversationNote', () => {
     const note = formatConversationNote(data);
 
     // Note should still be created with basic info
-    expect(note).toContain('**With:** Test User');
-    expect(note).not.toContain('---'); // No messages section divider
+    expect(note).toContain('**Test User**');
+    expect(note).toContain('0 messages');
+    expect(note).not.toContain('### Conversation'); // No conversation section
   });
 
   test('handles empty messages array', () => {
@@ -84,8 +86,9 @@ describe('formatConversationNote', () => {
     const note = formatConversationNote(data);
 
     // Note should still be created with basic info
-    expect(note).toContain('**With:** Test User');
-    expect(note).not.toContain('---'); // No messages section divider
+    expect(note).toContain('**Test User**');
+    expect(note).toContain('0 messages');
+    expect(note).not.toContain('### Conversation'); // No conversation section
   });
 
   test('handles message without timestamp', () => {
@@ -98,12 +101,12 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('**Test User**:');
-    expect(note).toContain('No timestamp here');
-    expect(note).not.toContain('()'); // No empty parentheses
+    expect(note).toContain('**◀︎ Test User**');
+    expect(note).toContain('> No timestamp here');
+    expect(note).not.toContain('· _\n'); // No empty timestamp
   });
 
-  test('uses direction fallback when sender name is missing', () => {
+  test('uses sender name fallback when message sender is missing', () => {
     const data = {
       sender: { name: 'Test User' },
       messages: [
@@ -116,8 +119,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('**← Incoming**');
-    expect(note).toContain('**→ Outgoing**');
+    expect(note).toContain('**◀︎ Test User**'); // Uses sender name for incoming
+    expect(note).toContain('**▶︎ You**'); // Uses "You" for outgoing
   });
 
   test('includes quick note when provided', () => {
@@ -131,11 +134,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('> **Met at Web Summit 2024, interested in Series A**');
-    // Quick note should appear before "With:"
-    const noteIndex = note.indexOf('Met at Web Summit');
-    const withIndex = note.indexOf('**With:**');
-    expect(noteIndex).toBeLessThan(withIndex);
+    expect(note).toContain('📝 **Note:**');
+    expect(note).toContain('> Met at Web Summit 2024, interested in Series A');
   });
 
   test('does not include note section when quickNote is empty', () => {
@@ -149,7 +149,7 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).not.toContain('**Note:**');
+    expect(note).not.toContain('📝 **Note:**');
   });
 
   test('does not include note section when quickNote is undefined', () => {
@@ -162,7 +162,39 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).not.toContain('**Note:**');
+    expect(note).not.toContain('📝 **Note:**');
+  });
+
+  test('includes tags when provided', () => {
+    const data = {
+      sender: { name: 'John Doe' },
+      messages: [],
+      conversationUrl: 'https://linkedin.com/messaging/thread/123',
+      capturedAt: '2024-01-15T15:30:00.000Z',
+      tags: ['Founder', 'Series A']
+    };
+
+    const note = formatConversationNote(data);
+
+    expect(note).toContain('🏷️ **Tags:**');
+    expect(note).toContain('Founder, Series A');
+  });
+
+  test('formats multiline messages correctly', () => {
+    const data = {
+      sender: { name: 'John Doe' },
+      messages: [
+        { sender: 'John Doe', content: 'Line 1\nLine 2\nLine 3', isIncoming: true }
+      ],
+      conversationUrl: 'https://linkedin.com/messaging/thread/123',
+      capturedAt: '2024-01-15T15:30:00.000Z'
+    };
+
+    const note = formatConversationNote(data);
+
+    expect(note).toContain('> Line 1');
+    expect(note).toContain('> Line 2');
+    expect(note).toContain('> Line 3');
   });
 });
 

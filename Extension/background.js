@@ -961,34 +961,65 @@ async function addNote(personId, content) {
 function formatConversationNote(data) {
   const { sender, messages, conversationUrl, capturedAt, quickNote, tags } = data;
 
-  let note = `## LinkedIn Conversation\n\n`;
+  const senderName = sender.name || 'Unknown';
+  const messageCount = messages?.length || 0;
+  const capturedDate = new Date(capturedAt);
+  const dateFormatted = capturedDate.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
 
-  // Add tags at the top if provided
+  // Build the note with clean formatting
+  let note = '';
+
+  // Header
+  note += `# 💬 LinkedIn Conversation\n\n`;
+  note += `**${senderName}** · ${dateFormatted} · ${messageCount} message${messageCount !== 1 ? 's' : ''}\n\n`;
+
+  // Tags section (if any)
   if (tags && tags.length > 0) {
+    note += `---\n\n`;
     note += `🏷️ **Tags:** ${tags.join(', ')}\n\n`;
   }
 
-  // Add quick note at the top if provided
+  // Quick note section (if any)
   if (quickNote) {
-    note += `> **${quickNote}**\n\n`;
+    note += `---\n\n`;
+    note += `📝 **Note:**\n> ${quickNote}\n\n`;
   }
 
-  // Basic reference info
-  note += `**With:** ${sender.name || 'Unknown'}\n`;
-  note += `**Date:** ${new Date(capturedAt).toLocaleString()}\n`;
-  note += `**Source:** ${conversationUrl}\n\n`;
-
-  // Messages section
+  // Conversation section
   if (messages && messages.length > 0) {
     note += `---\n\n`;
+    note += `### Conversation\n\n`;
 
     messages.forEach((msg) => {
-      const direction = msg.isIncoming ? '← Incoming' : '→ Outgoing';
-      const timestamp = msg.timestamp ? ` (${msg.timestamp})` : '';
-      note += `**${msg.sender || direction}**${timestamp}:\n`;
-      note += `${msg.content}\n\n`;
+      const isIncoming = msg.isIncoming;
+      const arrow = isIncoming ? '◀︎' : '▶︎';
+      const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
+      const timestamp = msg.timestamp || '';
+
+      // Message header with arrow indicator
+      note += `**${arrow} ${senderLabel}**`;
+      if (timestamp) {
+        note += ` · _${timestamp}_`;
+      }
+      note += `\n`;
+
+      // Message content as blockquote for visual distinction
+      const contentLines = (msg.content || '').split('\n');
+      contentLines.forEach(line => {
+        note += `> ${line}\n`;
+      });
+      note += `\n`;
     });
   }
+
+  // Footer
+  note += `---\n\n`;
+  note += `🔗 [View on LinkedIn](${conversationUrl})\n`;
 
   return note;
 }
