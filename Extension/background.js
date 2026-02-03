@@ -1103,6 +1103,7 @@ if (typeof module !== 'undefined' && module.exports) {
     parseHeadlineForProfile,
     findPersonFields,
     populatePersonFields,
+    findDropdownOption,
     resetCaches,
     createPerson,
     addNote,

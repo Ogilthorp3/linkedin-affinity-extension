@@ -12,7 +12,11 @@ const {
   createPerson,
   addNote,
   getNotesForPerson,
-  checkDuplicateAndGetExistingMessages
+  checkDuplicateAndGetExistingMessages,
+  findPersonFields,
+  populatePersonFields,
+  findDropdownOption,
+  resetCaches
 } = require('../Extension/background.js');
 
 describe('formatConversationNote', () => {
@@ -623,5 +627,286 @@ describe('checkDuplicateAndGetExistingMessages', () => {
     );
 
     expect(result.sentAt).toBe('2024-01-15T10:00:00.000Z');
+  });
+});
+
+describe('findDropdownOption', () => {
+  test('finds option by exact name match', () => {
+    const field = {
+      dropdown_options: [
+        { id: 1, text: 'Email' },
+        { id: 2, text: 'LinkedIn' },
+        { id: 3, text: 'Referral' }
+      ]
+    };
+
+    expect(findDropdownOption(field, 'LinkedIn')).toBe(2);
+  });
+
+  test('finds option case-insensitively', () => {
+    const field = {
+      dropdown_options: [
+        { id: 1, text: 'Email' },
+        { id: 2, text: 'LinkedIn' },
+        { id: 3, text: 'Referral' }
+      ]
+    };
+
+    expect(findDropdownOption(field, 'linkedin')).toBe(2);
+    expect(findDropdownOption(field, 'LINKEDIN')).toBe(2);
+  });
+
+  test('finds option by partial match', () => {
+    const field = {
+      dropdown_options: [
+        { id: 1, text: 'Email Campaign' },
+        { id: 2, text: 'LinkedIn Outreach' },
+        { id: 3, text: 'Referral' }
+      ]
+    };
+
+    expect(findDropdownOption(field, 'linkedin')).toBe(2);
+  });
+
+  test('returns null when no match', () => {
+    const field = {
+      dropdown_options: [
+        { id: 1, text: 'Email' },
+        { id: 2, text: 'Referral' }
+      ]
+    };
+
+    expect(findDropdownOption(field, 'LinkedIn')).toBeNull();
+  });
+
+  test('returns null for null field', () => {
+    expect(findDropdownOption(null, 'LinkedIn')).toBeNull();
+  });
+
+  test('returns null for field without dropdown_options', () => {
+    const field = { id: 1, name: 'Source' };
+    expect(findDropdownOption(field, 'LinkedIn')).toBeNull();
+  });
+});
+
+describe('findPersonFields', () => {
+  beforeEach(() => {
+    resetCaches();
+  });
+
+  test('finds all field types correctly', async () => {
+    setupApiKey();
+    mockFetchResponse([
+      { id: 1, name: 'LinkedIn URL', value_type: 6 },
+      { id: 2, name: 'LinkedIn Profile Headline', value_type: 6 },
+      { id: 3, name: 'Current Job Title', value_type: 6 },
+      { id: 4, name: 'Job Titles', value_type: 6 },
+      { id: 5, name: 'Location', value_type: 6 },
+      { id: 6, name: 'Industry', value_type: 2, dropdown_options: [{ id: 100, text: 'Technology' }] },
+      { id: 7, name: 'Phone Number', value_type: 6 },
+      { id: 8, name: 'Source of Introduction', value_type: 2, dropdown_options: [{ id: 200, text: 'LinkedIn' }] },
+      { id: 9, name: 'Bio', value_type: 6 }
+    ]);
+
+    const fields = await findPersonFields();
+
+    expect(fields.linkedin?.id).toBe(1);
+    expect(fields.headline?.id).toBe(2);
+    expect(fields.currentJobTitle?.id).toBe(3);
+    expect(fields.jobTitles?.id).toBe(4);
+    expect(fields.location?.id).toBe(5);
+    expect(fields.industry?.id).toBe(6);
+    expect(fields.phone?.id).toBe(7);
+    expect(fields.sourceOfIntroduction?.id).toBe(8);
+    expect(fields.bio?.id).toBe(9);
+  });
+
+  test('finds fields with alternative names', async () => {
+    setupApiKey();
+    mockFetchResponse([
+      { id: 1, name: 'LinkedIn', value_type: 6 },
+      { id: 2, name: 'Headline', value_type: 6 },
+      { id: 3, name: 'Title', value_type: 6 },
+      { id: 4, name: 'City', value_type: 6 },
+      { id: 5, name: 'Sector', value_type: 6 },
+      { id: 6, name: 'Mobile', value_type: 6 }
+    ]);
+
+    const fields = await findPersonFields();
+
+    expect(fields.linkedin?.id).toBe(1);
+    expect(fields.headline?.id).toBe(2);
+    expect(fields.currentJobTitle?.id).toBe(3);
+    expect(fields.location?.id).toBe(4);
+    expect(fields.industry?.id).toBe(5);
+    expect(fields.phone?.id).toBe(6);
+  });
+
+  test('caches field definitions', async () => {
+    setupApiKey();
+    mockFetchResponse([{ id: 1, name: 'LinkedIn URL', value_type: 6 }]);
+
+    await findPersonFields();
+    await findPersonFields();
+
+    // Fetch should only be called once (for the first call)
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('handles empty field list', async () => {
+    setupApiKey();
+    mockFetchResponse([]);
+
+    const fields = await findPersonFields();
+
+    expect(fields.linkedin).toBeUndefined();
+    expect(fields._all).toEqual([]);
+  });
+});
+
+describe('populatePersonFields', () => {
+  beforeEach(() => {
+    resetCaches();
+  });
+
+  test('populates all available text fields', async () => {
+    setupApiKey();
+
+    // First call returns field definitions
+    mockFetchResponse([
+      { id: 1, name: 'LinkedIn URL', value_type: 6 },
+      { id: 2, name: 'LinkedIn Profile Headline', value_type: 6 },
+      { id: 3, name: 'Current Job Title', value_type: 6 },
+      { id: 4, name: 'Job Titles', value_type: 6 },
+      { id: 5, name: 'Location', value_type: 6 },
+      { id: 6, name: 'Industry', value_type: 6 },
+      { id: 7, name: 'Bio', value_type: 6 }
+    ]);
+
+    // Subsequent calls return success for field value creation
+    for (let i = 0; i < 7; i++) {
+      mockFetchResponse({ id: 100 + i });
+    }
+
+    const profileData = {
+      linkedinUrl: 'https://linkedin.com/in/johndoe',
+      headline: 'CEO at TechCorp',
+      currentJobTitle: 'Chief Executive Officer',
+      allJobTitles: ['CEO', 'CTO', 'Engineer'],
+      location: 'San Francisco, CA',
+      industry: 'Technology',
+      about: 'Passionate about technology'
+    };
+
+    const results = await populatePersonFields(123, profileData, true);
+
+    expect(results.length).toBe(7);
+    expect(results.map(r => r.field)).toContain('linkedin');
+    expect(results.map(r => r.field)).toContain('headline');
+    expect(results.map(r => r.field)).toContain('currentJobTitle');
+    expect(results.map(r => r.field)).toContain('jobTitles');
+    expect(results.map(r => r.field)).toContain('location');
+    expect(results.map(r => r.field)).toContain('industry');
+    expect(results.map(r => r.field)).toContain('bio');
+  });
+
+  test('populates Source of Introduction dropdown for new persons', async () => {
+    setupApiKey();
+
+    // Field definitions with Source of Introduction dropdown
+    mockFetchResponse([
+      { id: 1, name: 'Source of Introduction', value_type: 2, dropdown_options: [
+        { id: 100, text: 'Email' },
+        { id: 101, text: 'LinkedIn' },
+        { id: 102, text: 'Referral' }
+      ]}
+    ]);
+
+    // Success for field value creation
+    mockFetchResponse({ id: 200 });
+
+    const results = await populatePersonFields(123, {}, true);
+
+    expect(results.length).toBe(1);
+    expect(results[0].field).toBe('sourceOfIntroduction');
+
+    // Verify the correct dropdown option ID was used
+    const calls = global.fetch.mock.calls;
+    const fieldValueCall = calls.find(c => c[0].includes('/field-values'));
+    expect(fieldValueCall).toBeDefined();
+    const body = JSON.parse(fieldValueCall[1].body);
+    expect(body.value).toBe(101); // LinkedIn option ID
+  });
+
+  test('does not populate Source of Introduction for existing persons', async () => {
+    setupApiKey();
+
+    mockFetchResponse([
+      { id: 1, name: 'Source of Introduction', value_type: 2, dropdown_options: [
+        { id: 101, text: 'LinkedIn' }
+      ]}
+    ]);
+
+    const results = await populatePersonFields(123, {}, false); // isNewPerson = false
+
+    expect(results.length).toBe(0);
+  });
+
+  test('populates industry dropdown field correctly', async () => {
+    setupApiKey();
+
+    mockFetchResponse([
+      { id: 1, name: 'Industry', value_type: 2, dropdown_options: [
+        { id: 50, text: 'Finance' },
+        { id: 51, text: 'Technology' },
+        { id: 52, text: 'Healthcare' }
+      ]}
+    ]);
+
+    mockFetchResponse({ id: 200 });
+
+    const results = await populatePersonFields(123, { industry: 'Technology' }, false);
+
+    expect(results.length).toBe(1);
+    expect(results[0].field).toBe('industry');
+
+    // Verify the correct dropdown option ID was used
+    const calls = global.fetch.mock.calls;
+    const fieldValueCall = calls.find(c => c[0].includes('/field-values'));
+    const body = JSON.parse(fieldValueCall[1].body);
+    expect(body.value).toBe(51); // Technology option ID
+  });
+
+  test('concatenates all job titles', async () => {
+    setupApiKey();
+
+    mockFetchResponse([
+      { id: 1, name: 'Job Titles', value_type: 6 }
+    ]);
+
+    mockFetchResponse({ id: 200 });
+
+    await populatePersonFields(123, {
+      allJobTitles: ['CEO', 'CTO', 'Software Engineer']
+    }, false);
+
+    const calls = global.fetch.mock.calls;
+    const fieldValueCall = calls.find(c => c[0].includes('/field-values'));
+    const body = JSON.parse(fieldValueCall[1].body);
+    expect(body.value).toBe('CEO, CTO, Software Engineer');
+  });
+
+  test('handles missing profile data gracefully', async () => {
+    setupApiKey();
+
+    mockFetchResponse([
+      { id: 1, name: 'LinkedIn URL', value_type: 6 },
+      { id: 2, name: 'Location', value_type: 6 }
+    ]);
+
+    // Should not make any field-value calls since no data provided
+    const results = await populatePersonFields(123, {}, false);
+
+    expect(results.length).toBe(0);
   });
 });
