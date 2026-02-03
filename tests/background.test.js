@@ -855,12 +855,9 @@ describe('populatePersonFields', () => {
   test('populates industry dropdown field correctly', async () => {
     setupApiKey();
 
+    // Affinity dropdown fields accept text values directly
     mockFetchResponse([
-      { id: 1, name: 'Industry', value_type: 2, dropdown_options: [
-        { id: 50, text: 'Finance' },
-        { id: 51, text: 'Technology' },
-        { id: 52, text: 'Healthcare' }
-      ]}
+      { id: 1, name: 'Industry', value_type: 2 }
     ]);
 
     mockFetchResponse({ id: 200 });
@@ -870,11 +867,11 @@ describe('populatePersonFields', () => {
     expect(results.length).toBe(1);
     expect(results[0].field).toBe('industry');
 
-    // Verify the correct dropdown option ID was used
+    // Verify the text value was set directly (Affinity dropdowns accept any text)
     const calls = global.fetch.mock.calls;
     const fieldValueCall = calls.find(c => c[0].includes('/field-values'));
     const body = JSON.parse(fieldValueCall[1].body);
-    expect(body.value).toBe(51); // Technology option ID
+    expect(body.value).toBe('Technology');
   });
 
   test('concatenates all job titles', async () => {

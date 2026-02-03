@@ -630,60 +630,19 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
   }
 
   // Current Job Title (prefer currentJobTitle, fall back to title)
+  // Note: Affinity dropdown fields accept any text value directly
   const currentTitle = profileData.currentJobTitle || profileData.title;
   if (fields.currentJobTitle && currentTitle) {
-    if (fields.currentJobTitle.value_type === 2) {
-      // Dropdown field - find closest matching option
-      const optionId = findDropdownOption(fields.currentJobTitle, currentTitle);
-      if (optionId) {
-        const result = await addFieldValue(fields.currentJobTitle.id, personId, optionId);
-        if (result) results.push({ field: 'currentJobTitle', success: true });
-      } else {
-        console.log('[LinkedIn to Affinity] Current Job Title dropdown - no match for:', currentTitle);
-        if (fields.currentJobTitle.dropdown_options?.length > 0) {
-          console.log('[LinkedIn to Affinity] Available options:', fields.currentJobTitle.dropdown_options.map(o => o.text).join(', '));
-        } else {
-          console.log('[LinkedIn to Affinity] No dropdown options configured for Current Job Title');
-        }
-      }
-    } else {
-      // Text field
-      const result = await addFieldValue(fields.currentJobTitle.id, personId, currentTitle);
-      if (result) results.push({ field: 'currentJobTitle', success: true });
-    }
+    const result = await addFieldValue(fields.currentJobTitle.id, personId, currentTitle);
+    if (result) results.push({ field: 'currentJobTitle', success: true });
   }
 
-  // All Job Titles
+  // All Job Titles - concatenate all titles
+  // Note: Affinity dropdown fields accept any text value directly
   if (fields.jobTitles && profileData.allJobTitles && profileData.allJobTitles.length > 0) {
-    if (fields.jobTitles.value_type === 2) {
-      // Dropdown field - try to match each job title to an option
-      const matchedOptions = [];
-      for (const title of profileData.allJobTitles) {
-        const optionId = findDropdownOption(fields.jobTitles, title);
-        if (optionId && !matchedOptions.includes(optionId)) {
-          matchedOptions.push(optionId);
-        }
-      }
-      if (matchedOptions.length > 0) {
-        // Add each matched option as a separate field value
-        for (const optionId of matchedOptions) {
-          const result = await addFieldValue(fields.jobTitles.id, personId, optionId);
-          if (result) results.push({ field: 'jobTitles', success: true });
-        }
-      } else {
-        console.log('[LinkedIn to Affinity] Job Titles dropdown - no matches for:', profileData.allJobTitles);
-        if (fields.jobTitles.dropdown_options?.length > 0) {
-          console.log('[LinkedIn to Affinity] Available options:', fields.jobTitles.dropdown_options.map(o => o.text).join(', '));
-        } else {
-          console.log('[LinkedIn to Affinity] No dropdown options configured for Job Titles');
-        }
-      }
-    } else {
-      // Text field - concatenate all titles
-      const titlesText = profileData.allJobTitles.join(', ');
-      const result = await addFieldValue(fields.jobTitles.id, personId, titlesText);
-      if (result) results.push({ field: 'jobTitles', success: true });
-    }
+    const titlesText = profileData.allJobTitles.join(', ');
+    const result = await addFieldValue(fields.jobTitles.id, personId, titlesText);
+    if (result) results.push({ field: 'jobTitles', success: true });
   }
 
   // Location - handle both text (type 6) and location (type 5) field types
@@ -708,21 +667,10 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
   }
 
   // Industry
+  // Note: Affinity dropdown fields accept any text value directly
   if (fields.industry && profileData.industry) {
-    if (fields.industry.value_type === 2) {
-      // Dropdown field - find matching option
-      const optionId = findDropdownOption(fields.industry, profileData.industry);
-      if (optionId) {
-        const result = await addFieldValue(fields.industry.id, personId, optionId);
-        if (result) results.push({ field: 'industry', success: true });
-      } else {
-        console.log('[LinkedIn to Affinity] Industry dropdown option not found:', profileData.industry);
-      }
-    } else {
-      // Text field
-      const result = await addFieldValue(fields.industry.id, personId, profileData.industry);
-      if (result) results.push({ field: 'industry', success: true });
-    }
+    const result = await addFieldValue(fields.industry.id, personId, profileData.industry);
+    if (result) results.push({ field: 'industry', success: true });
   }
 
   // Phone Number (if available - usually not from LinkedIn)
