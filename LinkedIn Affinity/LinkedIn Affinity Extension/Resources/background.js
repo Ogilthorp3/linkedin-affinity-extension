@@ -753,14 +753,27 @@ async function populatePersonFields(personId, profileData, isNewPerson = true, t
   // and cannot be set via API - enable Affinity Data enrichment in settings
 
   // Contact Type / Tags (from VC workflow)
-  if (fields.contactType && tags && tags.length > 0) {
+  if (tags && tags.length > 0) {
     const tagsValue = tags.join(', ');
-    fieldPromises.push(
-      addFieldValue(fields.contactType.id, personId, tagsValue)
-        .then(result => result ? { field: 'contactType', success: true, value: tagsValue } : null)
-        .catch(() => null)
-    );
-    console.log('[LinkedIn to Affinity] Setting contact type:', tagsValue);
+    if (fields.contactType) {
+      fieldPromises.push(
+        addFieldValue(fields.contactType.id, personId, tagsValue)
+          .then(result => {
+            if (result) {
+              console.log('[LinkedIn to Affinity] Tags saved to field:', fields.contactType.name, '=', tagsValue);
+              return { field: 'contactType', success: true, value: tagsValue };
+            }
+            return null;
+          })
+          .catch((err) => {
+            console.error('[LinkedIn to Affinity] Error saving tags:', err);
+            return null;
+          })
+      );
+    } else {
+      console.log('[LinkedIn to Affinity] No Contact Type field found in Affinity. Create a field named "Contact Type" or "Tags" to store contact classifications.');
+      console.log('[LinkedIn to Affinity] Available person fields:', fields._all?.map(f => f.name).join(', '));
+    }
   }
 
   // Run all field updates in parallel for speed
@@ -906,9 +919,14 @@ async function addNote(personId, content) {
  * so the note only contains the conversation and any user-added context.
  */
 function formatConversationNote(data) {
-  const { sender, messages, conversationUrl, capturedAt, quickNote } = data;
+  const { sender, messages, conversationUrl, capturedAt, quickNote, tags } = data;
 
   let note = `## LinkedIn Conversation\n\n`;
+
+  // Add tags at the top if provided
+  if (tags && tags.length > 0) {
+    note += `🏷️ **Tags:** ${tags.join(', ')}\n\n`;
+  }
 
   // Add quick note at the top if provided
   if (quickNote) {
