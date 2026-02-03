@@ -5,6 +5,7 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 document.addEventListener('DOMContentLoaded', () => {
   const apiKeyInput = document.getElementById('apiKey');
+  const subdomainInput = document.getElementById('affinitySubdomain');
   const saveBtn = document.getElementById('saveBtn');
   const testBtn = document.getElementById('testBtn');
   const statusDiv = document.getElementById('status');
@@ -13,12 +14,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const statsBadge = document.getElementById('statsBadge');
   const statsText = document.getElementById('statsText');
 
-  // Load existing API key
-  browserAPI.storage.sync.get(['affinityApiKey'], (result) => {
+  // Load existing API key and subdomain
+  browserAPI.storage.sync.get(['affinityApiKey', 'affinitySubdomain'], (result) => {
     if (result.affinityApiKey) {
       apiKeyInput.value = result.affinityApiKey;
       updateConnectionStatus('checking');
       testConnection();
+    }
+    if (result.affinitySubdomain) {
+      subdomainInput.value = result.affinitySubdomain;
     }
   });
 
@@ -31,17 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Save API key
+  // Save API key and subdomain
   saveBtn.addEventListener('click', () => {
     const apiKey = apiKeyInput.value.trim();
+    const subdomain = subdomainInput.value.trim() || 'app';
 
     if (!apiKey) {
       showStatus('Please enter an API key', 'error');
       return;
     }
 
-    browserAPI.storage.sync.set({ affinityApiKey: apiKey }, () => {
-      showStatus('API key saved successfully', 'success');
+    browserAPI.storage.sync.set({
+      affinityApiKey: apiKey,
+      affinitySubdomain: subdomain
+    }, () => {
+      showStatus('Settings saved successfully', 'success');
       testConnection();
     });
   });
@@ -49,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Test connection
   testBtn.addEventListener('click', () => {
     const apiKey = apiKeyInput.value.trim();
+    const subdomain = subdomainInput.value.trim() || 'app';
 
     if (!apiKey) {
       showStatus('Please enter an API key first', 'error');
@@ -56,7 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Save first, then test
-    browserAPI.storage.sync.set({ affinityApiKey: apiKey }, () => {
+    browserAPI.storage.sync.set({
+      affinityApiKey: apiKey,
+      affinitySubdomain: subdomain
+    }, () => {
       testConnection();
     });
   });
@@ -110,6 +122,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Allow Enter key to save
   apiKeyInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      saveBtn.click();
+    }
+  });
+
+  subdomainInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       saveBtn.click();
     }

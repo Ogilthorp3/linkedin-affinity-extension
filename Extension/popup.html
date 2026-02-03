@@ -73,6 +73,36 @@
       box-shadow: 0 0 0 3px rgba(10, 102, 194, 0.1);
     }
 
+    .subdomain-input-group {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .subdomain-input-group input {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+      flex: 1;
+    }
+
+    .subdomain-suffix {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: #86868b;
+      background: #f5f5f7;
+      border: 1px solid #d2d2d7;
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .field-hint {
+      font-size: 11px;
+      color: #86868b;
+      margin-top: 4px;
+    }
+
     .button-group {
       display: flex;
       gap: 8px;
@@ -245,6 +275,15 @@
     <input type="password" id="apiKey" placeholder="Enter your API key">
   </div>
 
+  <div class="form-group">
+    <label for="affinitySubdomain">Affinity Subdomain</label>
+    <div class="subdomain-input-group">
+      <input type="text" id="affinitySubdomain" placeholder="app">
+      <span class="subdomain-suffix">.affinity.co</span>
+    </div>
+    <p class="field-hint">Your Affinity URL (e.g., triptyq for triptyq.affinity.co)</p>
+  </div>
+
   <div class="button-group">
     <button class="btn-primary" id="saveBtn">Save</button>
     <button class="btn-secondary" id="testBtn">Test</button>
@@ -263,7 +302,8 @@
   </div>
 
   <div class="help-text">
-    <p>Find your API key in Affinity under Settings > API.</p>
+    <p>Find your API key in Affinity under Settings → API.</p>
+    <p>Your subdomain is the first part of your Affinity URL.</p>
     <div class="shortcut">
       <span>Shortcut:</span>
       <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>

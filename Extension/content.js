@@ -435,6 +435,22 @@ function _isConversationItem(element) {
   }
 
   /**
+   * Get the Affinity subdomain from storage (defaults to 'app')
+   */
+  function getAffinitySubdomain() {
+    return new Promise((resolve) => {
+      try {
+        browserAPI.storage.sync.get(['affinitySubdomain'], (result) => {
+          resolve(result.affinitySubdomain || 'app');
+        });
+      } catch (error) {
+        console.log('[LinkedIn to Affinity] Could not get subdomain:', error);
+        resolve('app');
+      }
+    });
+  }
+
+  /**
    * Show first-run welcome tooltip
    */
   function showFirstRunWelcome(button) {
@@ -1327,9 +1343,10 @@ function _isConversationItem(element) {
       if (header) header.style.display = 'none';
 
       // Build "View in Affinity" link if we have personId
-      // Affinity uses /people/ path (not /persons/) for the web app
+      // Use the configured subdomain (e.g., triptyq.affinity.co instead of app.affinity.co)
+      const subdomain = successData?.subdomain || 'app';
       const viewLinkHtml = successData?.personId
-        ? `<a href="https://app.affinity.co/people/${successData.personId}" target="_blank" class="affinity-view-link">View in Affinity →</a>`
+        ? `<a href="https://${subdomain}.affinity.co/people/${successData.personId}" target="_blank" class="affinity-view-link">View in Affinity →</a>`
         : '';
 
       // Create celebration content
@@ -1491,8 +1508,10 @@ function _isConversationItem(element) {
       if (response.success) {
         // Increment stats counter
         incrementSyncCount();
+        // Get the subdomain for the View in Affinity link
+        const subdomain = await getAffinitySubdomain();
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!', null, { personId });
+          showModalFeedback(modalOverlay, 'success', 'Conversation sent successfully!', null, { personId, subdomain });
         }
       } else {
         throw new Error(response.error || 'Failed to send');
@@ -1552,6 +1571,8 @@ function _isConversationItem(element) {
       if (response.success) {
         // Increment stats counter
         incrementSyncCount();
+        // Get the subdomain for the View in Affinity link
+        const subdomain = await getAffinitySubdomain();
         // Show success feedback on modal
         const msgCount = response.newMessageCount;
         const successMsg = msgCount !== undefined
@@ -1559,7 +1580,7 @@ function _isConversationItem(element) {
           : 'Conversation sent successfully!';
 
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', successMsg, null, { personId });
+          showModalFeedback(modalOverlay, 'success', successMsg, null, { personId, subdomain });
         } else {
           // Fallback to button feedback if modal was closed
           if (button) {
@@ -1633,10 +1654,12 @@ function _isConversationItem(element) {
       if (response.success) {
         // Increment stats counter
         incrementSyncCount();
+        // Get the subdomain for the View in Affinity link
+        const subdomain = await getAffinitySubdomain();
         // Show success feedback on modal
         const name = response.personName || conversationData.sender?.name || 'contact';
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', `Created ${name} and sent conversation!`, null, { personId: response.personId });
+          showModalFeedback(modalOverlay, 'success', `Created ${name} and sent conversation!`, null, { personId: response.personId, subdomain });
         } else if (button) {
           button.classList.add('affinity-success');
           const span = button.querySelector('span');
