@@ -576,17 +576,40 @@ async function createPerson(personData) {
     emails: [] // LinkedIn doesn't expose emails
   };
 
-  // Find or create organization if company name is available
-  if (enrichedData.company) {
+  // Find or create organizations for all companies in work history
+  const organizationIds = [];
+
+  // Check if we have allCompanies from Voyager API (full work history)
+  if (enrichedData.allCompanies && enrichedData.allCompanies.length > 0) {
+    console.log('[LinkedIn to Affinity] Linking', enrichedData.allCompanies.length, 'organizations from work history');
+
+    for (const company of enrichedData.allCompanies) {
+      if (company.name) {
+        try {
+          const org = await findOrCreateOrganization(company.name);
+          if (org && org.id && !organizationIds.includes(org.id)) {
+            organizationIds.push(org.id);
+            console.log('[LinkedIn to Affinity] Linked organization:', org.id, company.name, company.isCurrent ? '(current)' : '(past)');
+          }
+        } catch (error) {
+          console.log('[LinkedIn to Affinity] Could not link organization:', company.name, error.message);
+        }
+      }
+    }
+  } else if (enrichedData.company) {
+    // Fallback: use single company from headline
     console.log('[LinkedIn to Affinity] Looking for organization:', enrichedData.company);
     const org = await findOrCreateOrganization(enrichedData.company);
-    console.log('[LinkedIn to Affinity] Organization result:', org);
     if (org && org.id) {
-      payload.organization_ids = [org.id];
+      organizationIds.push(org.id);
       console.log('[LinkedIn to Affinity] Linking person to organization:', org.id, org.name);
     }
   } else {
     console.log('[LinkedIn to Affinity] No company name available for organization linking');
+  }
+
+  if (organizationIds.length > 0) {
+    payload.organization_ids = organizationIds;
   }
 
   // Create the person

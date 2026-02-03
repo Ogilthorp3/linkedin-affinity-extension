@@ -9,11 +9,13 @@
     "test:coverage": "jest --coverage --testPathIgnorePatterns=integration",
     "test:integration": "jest --testPathPattern=integration --runInBand",
     "test:all": "jest --runInBand",
+    "test:voyager": "node tests/test-voyager-direct.js",
     "build": "./scripts/build.sh",
     "build:quick": "./scripts/build.sh --skip-tests"
   },
   "devDependencies": {
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
+    "jest-environment-jsdom": "^29.7.0",
+    "puppeteer": "^24.36.1"
   }
 }

@@ -192,6 +192,122 @@ function _isConversationItem(element) {
   const CHECK_INTERVAL = 1000; // Check for conversation changes
   const API_TIMEOUT = 30000; // 30 second timeout for API calls
 
+  // ============================================================
+  // LINKEDIN VOYAGER API
+  // Fetches full profile data including work history
+  // ============================================================
+
+  /**
+   * Get CSRF token from LinkedIn cookies
+   */
+  function getLinkedInCsrfToken() {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'JSESSIONID') {
+        // Remove quotes if present
+        return value.replace(/"/g, '');
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Extract username/public-id from LinkedIn profile URL
+   */
+  function extractUsernameFromUrl(url) {
+    if (!url) return null;
+    // Handle various LinkedIn URL formats:
+    // https://www.linkedin.com/in/username/
+    // https://www.linkedin.com/in/ACoAAA.../
+    const match = url.match(/linkedin\.com\/in\/([^/?]+)/);
+    return match ? match[1] : null;
+  }
+
+  /**
+   * Fetch profile data using LinkedIn's internal Voyager API
+   * Returns all companies from work history
+   */
+  async function fetchProfileViaVoyager(linkedinUrl) {
+    const username = extractUsernameFromUrl(linkedinUrl);
+    if (!username) {
+      console.log('[LinkedIn to Affinity] Could not extract username from URL:', linkedinUrl);
+      return null;
+    }
+
+    const csrfToken = getLinkedInCsrfToken();
+    if (!csrfToken) {
+      console.log('[LinkedIn to Affinity] Could not get CSRF token');
+      return null;
+    }
+
+    try {
+      console.log('[LinkedIn to Affinity] Fetching profile via Voyager API:', username);
+
+      const response = await fetch(`https://www.linkedin.com/voyager/api/identity/dash/profiles?q=memberIdentity&memberIdentity=${username}&decorationId=com.linkedin.voyager.dash.deco.identity.profile.FullProfileWithEntities-93`, {
+        method: 'GET',
+        headers: {
+          'csrf-token': csrfToken,
+          'x-restli-protocol-version': '2.0.0',
+          'x-li-lang': 'en_US',
+          'accept': 'application/vnd.linkedin.normalized+json+2.1'
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        console.log('[LinkedIn to Affinity] Voyager API error:', response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      return extractCompaniesFromVoyagerResponse(data);
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error fetching profile via Voyager:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract all companies from Voyager API response
+   * Returns array of company objects with name and other details
+   */
+  function extractCompaniesFromVoyagerResponse(data) {
+    const companies = [];
+    const seenCompanies = new Set();
+
+    if (!data || !data.included) {
+      return companies;
+    }
+
+    // Look for Position entities in the included array
+    for (const item of data.included) {
+      const type = item['$type'] || '';
+
+      // Check for position/experience data (various type formats)
+      if (type.includes('Position') || type.includes('position')) {
+        const companyName = item.companyName || item.company?.name;
+        if (companyName && !seenCompanies.has(companyName.toLowerCase())) {
+          seenCompanies.add(companyName.toLowerCase());
+
+          // Check if position is current (no end date)
+          const isCurrent = !item.dateRange?.end && !item.timePeriod?.endDate && !item.endDate;
+
+          companies.push({
+            name: companyName,
+            title: item.title,
+            isCurrent: isCurrent,
+            startDate: item.dateRange?.start || item.timePeriod?.startDate || item.startDate,
+            endDate: item.dateRange?.end || item.timePeriod?.endDate || item.endDate
+          });
+        }
+      }
+    }
+
+    console.log('[LinkedIn to Affinity] Extracted companies from profile:', companies.map(c => `${c.name} (${c.isCurrent ? 'current' : 'past'})`));
+    return companies;
+  }
+
   /**
    * Send message to background script with timeout
    */
@@ -1468,6 +1584,19 @@ function _isConversationItem(element) {
           senderInfo.location = activeConversationInfo.location || senderInfo.location;
           // Also prefer the linkedinUrl from header if available (more reliable)
           senderInfo.linkedinUrl = activeConversationInfo.linkedinUrl || senderInfo.linkedinUrl;
+        }
+      }
+
+      // Fetch all companies from LinkedIn profile via Voyager API
+      if (senderInfo.linkedinUrl) {
+        try {
+          const companies = await fetchProfileViaVoyager(senderInfo.linkedinUrl);
+          if (companies && companies.length > 0) {
+            senderInfo.allCompanies = companies;
+            console.log('[LinkedIn to Affinity] Found', companies.length, 'companies in work history');
+          }
+        } catch (error) {
+          console.log('[LinkedIn to Affinity] Could not fetch work history:', error.message);
         }
       }
 
