@@ -455,14 +455,8 @@ async function findPersonFields() {
        f.name?.toLowerCase() === 'how we met') &&
       f.value_type === 6 // Text type only
     ),
-    // Current Organization - value_type 6 is Organization reference in Affinity
-    currentOrganization: personFields.find(f =>
-      (f.name?.toLowerCase() === 'current organization' ||
-       f.name?.toLowerCase() === 'current company' ||
-       f.name?.toLowerCase() === 'company') &&
-      f.value_type === 6 // Organization type
-    ),
-    // For all available fields debugging
+    // Note: "Current Organization" is an Affinity Data enrichment field
+    // and cannot be set via API - it's auto-populated by Affinity's system
     _all: personFields
   };
 
@@ -473,7 +467,6 @@ async function findPersonFields() {
     location: fieldsCache.location?.name,
     bio: fieldsCache.bio?.name,
     source: fieldsCache.source?.name,
-    currentOrganization: fieldsCache.currentOrganization?.name,
     totalFields: personFields.length
   });
 
@@ -484,9 +477,8 @@ async function findPersonFields() {
  * Populate all matching fields for a person
  * @param {number} personId - The Affinity person ID
  * @param {object} profileData - Profile data including linkedinUrl, headline, etc.
- * @param {number} organizationId - Optional organization ID for Current Organization field
  */
-async function populatePersonFields(personId, profileData, organizationId = null) {
+async function populatePersonFields(personId, profileData) {
   const fields = await findPersonFields();
   const results = [];
 
@@ -539,11 +531,8 @@ async function populatePersonFields(personId, profileData, organizationId = null
     }
   }
 
-  // Current Organization (Organization reference field)
-  if (fields.currentOrganization && organizationId) {
-    const result = await addFieldValue(fields.currentOrganization.id, personId, organizationId);
-    if (result) results.push({ field: 'currentOrganization', success: true });
-  }
+  // Note: "Current Organization" is an Affinity Data enrichment field
+  // and cannot be set via API - enable Affinity Data enrichment in settings
 
   console.log('[LinkedIn to Affinity] Populated fields:', results);
   return results;
@@ -588,14 +577,12 @@ async function createPerson(personData) {
   };
 
   // Find or create organization if company name is available
-  let currentOrgId = null;
   if (enrichedData.company) {
     console.log('[LinkedIn to Affinity] Looking for organization:', enrichedData.company);
     const org = await findOrCreateOrganization(enrichedData.company);
     console.log('[LinkedIn to Affinity] Organization result:', org);
     if (org && org.id) {
       payload.organization_ids = [org.id];
-      currentOrgId = org.id;
       console.log('[LinkedIn to Affinity] Linking person to organization:', org.id, org.name);
     }
   } else {
@@ -610,9 +597,9 @@ async function createPerson(personData) {
 
   console.log('[LinkedIn to Affinity] Created person:', person.id, payload.first_name, payload.last_name);
 
-  // Populate all matching custom fields (including Current Organization)
+  // Populate all matching custom fields
   if (person.id) {
-    await populatePersonFields(person.id, enrichedData, currentOrgId);
+    await populatePersonFields(person.id, enrichedData);
   }
 
   // Return enriched person data
