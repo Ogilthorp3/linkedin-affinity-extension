@@ -491,6 +491,16 @@ async function findPersonFields() {
        f.name?.toLowerCase() === 'how we met') &&
       f.value_type === 6 // Text type
     ),
+    // Contact Type / Relationship Type - Dropdown (2) or Text (6)
+    contactType: personFields.find(f =>
+      (f.name?.toLowerCase() === 'contact type' ||
+       f.name?.toLowerCase() === 'relationship type' ||
+       f.name?.toLowerCase() === 'type' ||
+       f.name?.toLowerCase() === 'category' ||
+       f.name?.toLowerCase() === 'tag' ||
+       f.name?.toLowerCase() === 'tags') &&
+      (f.value_type === 2 || f.value_type === 6)
+    ),
     // Note: "Current Organization" is an Affinity Data enrichment field
     // and cannot be set via API - it's auto-populated by Affinity's system
     _all: personFields
@@ -506,6 +516,7 @@ async function findPersonFields() {
     phone: fieldsCache.phone?.name,
     sourceOfIntroduction: fieldsCache.sourceOfIntroduction?.name,
     sourceText: fieldsCache.sourceText?.name,
+    contactType: fieldsCache.contactType?.name,
     totalFields: personFields.length
   });
 
@@ -612,8 +623,9 @@ function getBigrams(str) {
  * @param {number} personId - The Affinity person ID
  * @param {object} profileData - Profile data including linkedinUrl, headline, etc.
  * @param {boolean} isNewPerson - Whether this is a newly created person
+ * @param {array} tags - Optional array of contact type tags (e.g., ["Founder", "LP"])
  */
-async function populatePersonFields(personId, profileData, isNewPerson = true) {
+async function populatePersonFields(personId, profileData, isNewPerson = true, tags = []) {
   const fields = await findPersonFields();
   const fieldPromises = [];
 
@@ -740,6 +752,17 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
   // Note: "Current Organization" is an Affinity Data enrichment field
   // and cannot be set via API - enable Affinity Data enrichment in settings
 
+  // Contact Type / Tags (from VC workflow)
+  if (fields.contactType && tags && tags.length > 0) {
+    const tagsValue = tags.join(', ');
+    fieldPromises.push(
+      addFieldValue(fields.contactType.id, personId, tagsValue)
+        .then(result => result ? { field: 'contactType', success: true, value: tagsValue } : null)
+        .catch(() => null)
+    );
+    console.log('[LinkedIn to Affinity] Setting contact type:', tagsValue);
+  }
+
   // Run all field updates in parallel for speed
   const allResults = await Promise.all(fieldPromises);
   const results = allResults.filter(r => r !== null);
@@ -751,7 +774,7 @@ async function populatePersonFields(personId, profileData, isNewPerson = true) {
 /**
  * Create a new person in Affinity with full profile data
  */
-async function createPerson(personData) {
+async function createPerson(personData, tags = []) {
   // Enrich data by fetching the actual LinkedIn profile
   let enrichedData = { ...personData };
 
@@ -844,7 +867,7 @@ async function createPerson(personData) {
 
   // Populate all matching custom fields (isNewPerson=true to set Source of Introduction)
   if (person.id) {
-    await populatePersonFields(person.id, enrichedData, true);
+    await populatePersonFields(person.id, enrichedData, true, tags);
   }
 
   // Return enriched person data
@@ -1113,6 +1136,13 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
   const note = await addNote(personId, noteContent);
   console.log('[LinkedIn to Affinity] Added note with', newMessages.length, 'new message(s)');
 
+  // Apply tags if provided (for existing contacts)
+  const tags = conversationData.tags || [];
+  if (tags.length > 0) {
+    console.log('[LinkedIn to Affinity] Applying tags to existing contact:', tags);
+    await populatePersonFields(personId, conversationData.sender || {}, false, tags);
+  }
+
   return {
     success: true,
     personId: personId,
@@ -1125,12 +1155,13 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
 /**
  * Create a new person and send conversation to them
  */
-async function createPersonAndSend(senderData, conversationData) {
+async function createPersonAndSend(senderData, conversationData, tags = []) {
   console.log('[LinkedIn to Affinity] Creating person with sender data - name:', senderData.name,
     '| headline:', senderData.headline,
     '| company:', senderData.company,
-    '| linkedinUrl:', senderData.linkedinUrl);
-  const person = await createPerson(senderData);
+    '| linkedinUrl:', senderData.linkedinUrl,
+    '| tags:', tags);
+  const person = await createPerson(senderData, tags);
   console.log('[LinkedIn to Affinity] Created new person:', person.id);
 
   const noteContent = formatConversationNote(conversationData);
@@ -1190,7 +1221,8 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'createPersonAndSend') {
     // Create new person and send (when user chooses "Create New" from modal)
-    createPersonAndSend(request.senderData, request.conversationData)
+    const tags = request.tags || request.conversationData?.tags || [];
+    createPersonAndSend(request.senderData, request.conversationData, tags)
       .then((result) => {
         console.log('[LinkedIn to Affinity] createPersonAndSend result:', result);
         sendResponse(result);
@@ -1201,6 +1233,22 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
           success: false,
           error: error.message || 'Unknown error'
         });
+      });
+
+    return true;
+  }
+
+  if (request.action === 'addFollowUpReminder') {
+    // Add a follow-up reminder note to a person
+    const reminderNote = `📅 **Follow-up Reminder**\n\nFollow up on: ${request.dateStr}\n\n_Set via LinkedIn to Affinity_`;
+    addNote(request.personId, reminderNote)
+      .then((result) => {
+        console.log('[LinkedIn to Affinity] Follow-up reminder added:', result);
+        sendResponse({ success: true, noteId: result.id });
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] Error adding follow-up:', error);
+        sendResponse({ success: false, error: error.message });
       });
 
     return true;

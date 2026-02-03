@@ -453,6 +453,50 @@
   color: #0a66c2;
 }
 
+/* Tags section for VC workflow */
+.affinity-tags-section {
+  padding: 12px 20px;
+  border-top: 1px solid #e5e5e5;
+  background: #fafafa;
+}
+
+.affinity-tags-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #86868b;
+  margin-bottom: 10px;
+}
+
+.affinity-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.affinity-tag {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1d1d1f;
+  background: #ffffff;
+  border: 1px solid #d1d1d6;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.affinity-tag:hover {
+  border-color: #0a66c2;
+  background: #f0f7ff;
+}
+
+.affinity-tag.selected {
+  background: #0a66c2;
+  border-color: #0a66c2;
+  color: #ffffff;
+}
+
 /* Quick notes section */
 .affinity-notes-section {
   padding: 12px 20px;
@@ -632,6 +676,54 @@
 .affinity-view-link:hover {
   background: #0a66c2;
   color: #ffffff;
+}
+
+/* Follow-up reminder section */
+.affinity-followup-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e5e5;
+  animation: affinity-fade-scale-in 0.4s ease 0.8s both;
+}
+
+.affinity-followup-label {
+  font-size: 13px;
+  color: #86868b;
+  margin-bottom: 10px;
+}
+
+.affinity-followup-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.affinity-followup-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1d1d1f;
+  background: #f5f5f7;
+  border: 1px solid #d1d1d6;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.affinity-followup-btn:hover {
+  background: #e5e5e5;
+  border-color: #0a66c2;
+}
+
+.affinity-followup-btn.selected {
+  background: #34c759;
+  border-color: #34c759;
+  color: #ffffff;
+}
+
+.affinity-followup-skip {
+  color: #86868b;
 }
 
 @keyframes affinity-fade-scale-in {

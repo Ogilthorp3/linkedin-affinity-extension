@@ -1165,7 +1165,8 @@ function _isConversationItem(element) {
 
         item.querySelector('.affinity-contact-select').addEventListener('click', () => {
           const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
-          handleContactSelection(person.id, conversationData, quickNote);
+          const tags = getSelectedTags();
+          handleContactSelection(person.id, conversationData, quickNote, tags);
         });
 
         list.appendChild(item);
@@ -1175,6 +1176,27 @@ function _isConversationItem(element) {
       const previewCard = createPreviewCard(sender);
       list.appendChild(previewCard);
     }
+
+    // Tags section for VC workflow
+    const tagsSection = document.createElement('div');
+    tagsSection.className = 'affinity-tags-section';
+    tagsSection.innerHTML = `
+      <label class="affinity-tags-label">Tag Contact</label>
+      <div class="affinity-tags-container">
+        <button type="button" class="affinity-tag" data-tag="Founder">🚀 Founder</button>
+        <button type="button" class="affinity-tag" data-tag="Co-investor">💼 Co-investor</button>
+        <button type="button" class="affinity-tag" data-tag="LP">🤝 LP</button>
+        <button type="button" class="affinity-tag" data-tag="Deal Source">🔗 Deal Source</button>
+        <button type="button" class="affinity-tag" data-tag="Portfolio">📋 Portfolio</button>
+      </div>
+    `;
+
+    // Add tag selection logic
+    tagsSection.querySelectorAll('.affinity-tag').forEach(tag => {
+      tag.addEventListener('click', () => {
+        tag.classList.toggle('selected');
+      });
+    });
 
     // Quick notes input
     const notesSection = document.createElement('div');
@@ -1201,6 +1223,7 @@ function _isConversationItem(element) {
     modal.appendChild(header);
     modal.appendChild(subtitle);
     modal.appendChild(list);
+    modal.appendChild(tagsSection);
     modal.appendChild(notesSection);
     modal.appendChild(footer);
     overlay.appendChild(modal);
@@ -1210,7 +1233,8 @@ function _isConversationItem(element) {
     footer.querySelector('.affinity-modal-cancel').addEventListener('click', () => hideContactModal(activeButton));
     footer.querySelector('.affinity-modal-create-new').addEventListener('click', () => {
       const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
-      handleCreateNewContact(conversationData, quickNote);
+      const tags = getSelectedTags();
+      handleCreateNewContact(conversationData, quickNote, tags);
     });
 
     // Close on overlay click
@@ -1245,6 +1269,17 @@ function _isConversationItem(element) {
     }
     document.removeEventListener('keydown', handleModalEscape);
     if (button) resetButton(button);
+  }
+
+  /**
+   * Get selected tags from modal
+   */
+  function getSelectedTags() {
+    const selectedTags = [];
+    document.querySelectorAll('.affinity-tag.selected').forEach(tag => {
+      selectedTags.push(tag.dataset.tag);
+    });
+    return selectedTags;
   }
 
   /**
@@ -1308,6 +1343,15 @@ function _isConversationItem(element) {
         </div>
         <div class="affinity-celebration-text">${escapeHtml(message)}</div>
         ${viewLinkHtml}
+        <div class="affinity-followup-section">
+          <div class="affinity-followup-label">Set follow-up reminder?</div>
+          <div class="affinity-followup-buttons">
+            <button class="affinity-followup-btn" data-days="1">Tomorrow</button>
+            <button class="affinity-followup-btn" data-days="7">1 Week</button>
+            <button class="affinity-followup-btn" data-days="30">1 Month</button>
+            <button class="affinity-followup-btn affinity-followup-skip" data-days="0">Skip</button>
+          </div>
+        </div>
         <div class="affinity-celebration-confetti"></div>
       `;
 
@@ -1316,12 +1360,28 @@ function _isConversationItem(element) {
         subtitle.replaceWith(celebration);
       }
 
+      // Add follow-up button handlers
+      celebration.querySelectorAll('.affinity-followup-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const days = parseInt(btn.dataset.days);
+          if (days > 0 && successData?.personId) {
+            setFollowUpReminder(successData.personId, days);
+            btn.textContent = '✓ Set!';
+            btn.classList.add('selected');
+          }
+          // Close modal after selection
+          setTimeout(() => hideContactModal(activeButton), 1000);
+        });
+      });
+
       // Trigger confetti
       setTimeout(() => createConfetti(celebration.querySelector('.affinity-celebration-confetti')), 300);
 
       if (footer) footer.style.display = 'none';
-      // Auto-close after delay (longer if there's a link to click)
-      setTimeout(() => hideContactModal(activeButton), successData?.personId ? 4000 : 2500);
+      // Don't auto-close - let user choose follow-up (or timeout after 15 seconds)
+      setTimeout(() => {
+        if (modalOverlay.parentNode) hideContactModal(activeButton);
+      }, 15000);
       return;
     }
 
@@ -1357,6 +1417,32 @@ function _isConversationItem(element) {
       // Auto-close after delay
       const delay = type === 'error' ? 3000 : 2000;
       setTimeout(() => hideContactModal(activeButton), delay);
+    }
+  }
+
+  /**
+   * Set a follow-up reminder for a person
+   */
+  async function setFollowUpReminder(personId, days) {
+    const followUpDate = new Date();
+    followUpDate.setDate(followUpDate.getDate() + days);
+    const dateStr = followUpDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    try {
+      await sendMessage({
+        action: 'addFollowUpReminder',
+        personId: personId,
+        followUpDate: followUpDate.toISOString(),
+        dateStr: dateStr
+      });
+      console.log('[LinkedIn to Affinity] Follow-up reminder set for', dateStr);
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error setting follow-up:', error);
     }
   }
 
@@ -1439,7 +1525,7 @@ function _isConversationItem(element) {
   /**
    * Handle contact selection from modal
    */
-  async function handleContactSelection(personId, conversationData, quickNote = '') {
+  async function handleContactSelection(personId, conversationData, quickNote = '', tags = []) {
     const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
@@ -1449,10 +1535,11 @@ function _isConversationItem(element) {
         showModalLoading(modalOverlay, 'Sending conversation...');
       }
 
-      // Add quick note to conversation data
+      // Add quick note and tags to conversation data
       const dataWithNote = {
         ...conversationData,
-        quickNote: quickNote
+        quickNote: quickNote,
+        tags: tags
       };
 
       const response = await sendMessage({
@@ -1517,7 +1604,7 @@ function _isConversationItem(element) {
   /**
    * Handle creating a new contact from modal
    */
-  async function handleCreateNewContact(conversationData, quickNote = '') {
+  async function handleCreateNewContact(conversationData, quickNote = '', tags = []) {
     const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
@@ -1528,16 +1615,18 @@ function _isConversationItem(element) {
         showModalLoading(modalOverlay, `Creating ${name}'s profile...`);
       }
 
-      // Add quick note to conversation data
+      // Add quick note and tags to conversation data
       const dataWithNote = {
         ...conversationData,
-        quickNote: quickNote
+        quickNote: quickNote,
+        tags: tags
       };
 
       const response = await sendMessage({
         action: 'createPersonAndSend',
         senderData: conversationData.sender,
-        conversationData: dataWithNote
+        conversationData: dataWithNote,
+        tags: tags
       });
 
       if (response.success) {
