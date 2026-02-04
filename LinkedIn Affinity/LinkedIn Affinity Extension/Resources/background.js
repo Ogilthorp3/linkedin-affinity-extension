@@ -1228,36 +1228,45 @@ function extractMessagesFromNote(noteContent) {
 
   if (!noteContent) return messages;
 
-  const lines = noteContent.split('\n');
+  // Normalize content that Affinity might have transformed
+  // Unescape asterisks that Affinity escapes (e.g., \*\* -> **)
+  let normalized = noteContent.replace(/\\\*/g, '*');
+  // Convert <br> and <br/> to newlines
+  normalized = normalized.replace(/<br\s*\/?>/gi, '\n');
+  // Convert <strong> and <b> back to **
+  normalized = normalized.replace(/<strong>([^<]*)<\/strong>/gi, '**$1**');
+  normalized = normalized.replace(/<b>([^<]*)<\/b>/gi, '**$1**');
+  // Strip other HTML tags but keep content
+  normalized = normalized.replace(/<[^>]+>/g, '');
+
+  console.log('[LinkedIn to Affinity] extractMessagesFromNote normalized (first 300):', JSON.stringify(normalized.substring(0, 300)));
+
+  const lines = normalized.split('\n');
+
+  // Debug: check for message headers
+  const headerLines = lines.filter(l => l.match(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*$/));
+  console.log('[LinkedIn to Affinity] Found', headerLines.length, 'message headers:', headerLines.slice(0, 2));
   let currentMessage = '';
   let inMessage = false;
+
+  // Helper to check if a line is a message header
+  const isMessageHeader = (line) => {
+    if (!line) return false;
+    // New format: **Name** (date/time):
+    if (line.match(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*$/)) return true;
+    // Arrow format: ← **Name** or → **You**
+    if (line.match(/^[←→]\s+\*\*/)) return true;
+    // Old format: **◀︎ or **▶︎
+    if (line.startsWith('**◀︎') || line.startsWith('**▶︎')) return true;
+    return false;
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // New format: **Name** (date/time):
-    if (line.match(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*$/)) {
+    // Check if this line is a message header
+    if (isMessageHeader(line)) {
       // Save previous message
-      if (currentMessage.trim()) {
-        messages.add(currentMessage.trim());
-      }
-      currentMessage = '';
-      inMessage = true;
-      continue;
-    }
-
-    // Arrow format: ← **Name** or → **You**
-    if (line.match(/^[←→]\s+\*\*/)) {
-      if (currentMessage.trim()) {
-        messages.add(currentMessage.trim());
-      }
-      currentMessage = '';
-      inMessage = true;
-      continue;
-    }
-
-    // Old format: **◀︎ or **▶︎
-    if (line.startsWith('**◀︎') || line.startsWith('**▶︎')) {
       if (currentMessage.trim()) {
         messages.add(currentMessage.trim());
       }
@@ -1286,12 +1295,7 @@ function extractMessagesFromNote(noteContent) {
             break;
           }
         }
-        // Check all header formats
-        const isNextHeader = nextLine.match(/^\*\*[^*]+\*\*\s*\([^)]*\):/) ||
-                            nextLine.match(/^[←→]\s+\*\*/) ||
-                            nextLine.startsWith('**◀︎') ||
-                            nextLine.startsWith('**▶︎');
-        if (isNextHeader) {
+        if (isMessageHeader(nextLine)) {
           messages.add(currentMessage.trim());
           currentMessage = '';
         }
@@ -1463,7 +1467,9 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
         }
 
         // Extract messages from this note using the new format
+        console.log('[LinkedIn to Affinity] Extracting from note content (first 300 chars):', JSON.stringify(note.content.substring(0, 300)));
         const noteMessages = extractMessagesFromNote(note.content);
+        console.log('[LinkedIn to Affinity] Extracted messages:', Array.from(noteMessages).slice(0, 3));
 
         // Add to notesByDay map
         if (dayKey) {
