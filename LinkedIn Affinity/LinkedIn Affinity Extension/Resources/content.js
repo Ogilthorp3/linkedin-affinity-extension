@@ -418,7 +418,7 @@ function _isConversationItem(element) {
 
   /**
    * Parse relative date strings to YYYY-MM-DD format
-   * Handles: "Today", "Yesterday", "2 hours ago", "Jan 15", etc.
+   * Handles: "Today", "Yesterday", "2 hours ago", "Jan 15", "Jan 15, 2023", etc.
    */
   function parseRelativeDate(text) {
     if (!text) return null;
@@ -457,18 +457,46 @@ function _isConversationItem(element) {
       return date.toISOString().split('T')[0];
     }
 
-    // Month + day (e.g., "Jan 15", "January 15")
+    // Month patterns (e.g., "1 month ago", "2 months ago")
+    const monthsAgoMatch = lowerText.match(/(\d+)\s*months?\s*ago/);
+    if (monthsAgoMatch) {
+      const monthsAgo = parseInt(monthsAgoMatch[1], 10);
+      const date = new Date(now);
+      date.setMonth(date.getMonth() - monthsAgo);
+      return date.toISOString().split('T')[0];
+    }
+
+    // Month + day with optional year (e.g., "Jan 15", "January 15", "Jan 15, 2023")
     const monthDayMatch = text.match(/([A-Za-z]+)\s+(\d{1,2})(?:,?\s*(\d{4}))?/);
     if (monthDayMatch) {
       const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
       const monthIndex = monthNames.indexOf(monthDayMatch[1].toLowerCase().substring(0, 3));
       if (monthIndex !== -1) {
         const day = parseInt(monthDayMatch[2], 10);
-        const year = monthDayMatch[3] ? parseInt(monthDayMatch[3], 10) : now.getFullYear();
-        return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+        // If year is explicitly provided, use it
+        if (monthDayMatch[3]) {
+          const year = parseInt(monthDayMatch[3], 10);
+          return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+
+        // No year provided - need to figure out which year
+        // If the date would be in the future, it must be from last year
+        const currentYear = now.getFullYear();
+        const candidateDate = new Date(currentYear, monthIndex, day);
+
+        // If this date is in the future, use last year
+        if (candidateDate > now) {
+          return `${currentYear - 1}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+
+        // Otherwise use current year
+        return `${currentYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       }
     }
 
+    // Debug: log unrecognized timestamp formats
+    console.log('[LinkedIn to Affinity] Unrecognized timestamp format:', text);
     return null;
   }
 
@@ -1104,9 +1132,32 @@ function _isConversationItem(element) {
         }
 
         // Determine if incoming (not from current user)
-        const isOutgoing = msgEl.classList.contains('msg-s-event-listitem--outbound') ||
-                          msgEl.querySelector('.msg-s-message-group--outbound');
+        // Method 1: Check CSS classes for outbound indicator
+        const hasOutboundClass = msgEl.classList.contains('msg-s-event-listitem--outbound') ||
+                                 msgEl.classList.contains('msg-s-message-list__event--outbound') ||
+                                 msgEl.querySelector('.msg-s-message-group--outbound') ||
+                                 msgEl.querySelector('[class*="outbound"]');
+
+        // Method 2: Check if sender is "You" or matches typical self-indicators
+        const senderLower = (message.sender || '').toLowerCase();
+        const isSelfByName = senderLower === 'you' || senderLower === 'moi' || senderLower === 'me';
+
+        // Method 3: Check for visual indicators (outgoing messages often aligned right or have different styling)
+        const msgGroup = msgEl.closest('.msg-s-message-list__event') || msgEl;
+        const hasRightAlign = msgGroup.classList.contains('msg-s-message-list__event--last-message-from-me');
+
+        const isOutgoing = hasOutboundClass || isSelfByName || hasRightAlign;
         message.isIncoming = !isOutgoing;
+
+        // Debug logging
+        console.log('[LinkedIn to Affinity] Message:', {
+          sender: message.sender,
+          isOutgoing,
+          hasOutboundClass: !!hasOutboundClass,
+          isSelfByName,
+          hasRightAlign,
+          classes: msgEl.className
+        });
 
         // Only add if we have content and haven't seen this exact message before
         if (message.content) {

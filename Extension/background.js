@@ -1019,17 +1019,32 @@ function parseMessageDay(message) {
     return date.toISOString().split('T')[0];
   }
 
+  // Months ago
+  const monthsAgoMatch = lowerTimestamp.match(/(\d+)\s*months?\s*ago/);
+  if (monthsAgoMatch) {
+    const date = new Date(now);
+    date.setMonth(date.getMonth() - parseInt(monthsAgoMatch[1], 10));
+    return date.toISOString().split('T')[0];
+  }
+
   // Check if this looks like a timestamp without a year (e.g., "Jan 15, 10:30 AM")
   const hasExplicitYear = /\b20\d{2}\b/.test(timestamp);
 
   if (!hasExplicitYear) {
-    // Try to extract month and day, then use current year
+    // Try to extract month and day
     const monthDayMatch = timestamp.match(/([A-Za-z]+)\s+(\d{1,2})/);
     if (monthDayMatch) {
       const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
       const monthIndex = monthNames.indexOf(monthDayMatch[1].toLowerCase().substring(0, 3));
       if (monthIndex !== -1) {
         const day = parseInt(monthDayMatch[2], 10);
+
+        // If the date would be in the future, it must be from last year
+        const candidateDate = new Date(currentYear, monthIndex, day);
+        if (candidateDate > now) {
+          return `${currentYear - 1}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+
         return `${currentYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       }
     }
