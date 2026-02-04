@@ -1282,7 +1282,9 @@ function extractMessagesFromNote(noteContent) {
         currentMessage += (currentMessage ? '\n' : '') + line.substring(2);
       }
       // Plain text until next message header or empty line
-      else if (line.trim() && !line.startsWith('---') && !line.startsWith('http')) {
+      // Note: We include http lines here since they can be message content (URLs shared in chat)
+      // The conversation URL at the top is before any message header, so inMessage will be false
+      else if (line.trim() && !line.startsWith('---')) {
         currentMessage += (currentMessage ? '\n' : '') + line;
       }
       // Empty line might end the message
