@@ -443,6 +443,53 @@ describe('groupMessagesByDay', () => {
     expect(groupMessagesByDay([]).size).toBe(0);
     expect(groupMessagesByDay(null).size).toBe(0);
   });
+
+  test('uses pre-parsed date field when available', () => {
+    const messages = [
+      { content: 'Message 1', date: '2024-01-15', timestampDisplay: '10:30 AM' },
+      { content: 'Message 2', date: '2024-01-15', timestampDisplay: '11:00 AM' },
+      { content: 'Message 3', date: '2024-01-16', timestampDisplay: '09:00 AM' },
+      { content: 'Message 4', date: '2024-02-01', timestampDisplay: '02:00 PM' }
+    ];
+
+    const result = groupMessagesByDay(messages);
+
+    // Should create 3 separate day groups
+    expect(result.size).toBe(3);
+    expect(result.get('2024-01-15').length).toBe(2);
+    expect(result.get('2024-01-16').length).toBe(1);
+    expect(result.get('2024-02-01').length).toBe(1);
+  });
+
+  test('groups month-old conversation correctly', () => {
+    // Simulate a real conversation spanning multiple days over a month
+    const messages = [
+      { content: 'Initial outreach', date: '2024-01-05', timestampDisplay: '3:00 PM' },
+      { content: 'Thanks for connecting', date: '2024-01-05', timestampDisplay: '4:30 PM' },
+      { content: 'Following up', date: '2024-01-12', timestampDisplay: '10:00 AM' },
+      { content: 'Sorry for delay', date: '2024-01-12', timestampDisplay: '2:00 PM' },
+      { content: 'No problem', date: '2024-01-12', timestampDisplay: '2:05 PM' },
+      { content: 'Quick question', date: '2024-01-20', timestampDisplay: '11:00 AM' },
+      { content: 'Here is my answer', date: '2024-01-20', timestampDisplay: '3:00 PM' },
+      { content: 'Latest message', date: '2024-02-04', timestampDisplay: '9:00 AM' }
+    ];
+
+    const result = groupMessagesByDay(messages);
+
+    // Should create 4 separate day groups
+    expect(result.size).toBe(4);
+    expect(result.get('2024-01-05').length).toBe(2);
+    expect(result.get('2024-01-12').length).toBe(3);
+    expect(result.get('2024-01-20').length).toBe(2);
+    expect(result.get('2024-02-04').length).toBe(1);
+
+    // Verify order is oldest first
+    const days = [...result.keys()];
+    expect(days[0]).toBe('2024-01-05');
+    expect(days[1]).toBe('2024-01-12');
+    expect(days[2]).toBe('2024-01-20');
+    expect(days[3]).toBe('2024-02-04');
+  });
 });
 
 describe('formatDayKeyForDisplay', () => {

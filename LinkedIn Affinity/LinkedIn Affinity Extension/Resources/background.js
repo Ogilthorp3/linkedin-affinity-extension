@@ -1647,7 +1647,14 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
 
   // Group new messages by day
   const messagesByDay = groupMessagesByDay(newMessages);
-  console.log('[LinkedIn to Affinity] Messages grouped into', messagesByDay.size, 'day(s)');
+  const dayKeys = [...messagesByDay.keys()];
+  console.log('[LinkedIn to Affinity] Messages grouped into', messagesByDay.size, 'day(s):', dayKeys.join(', '));
+
+  // Log each day's message count for verification
+  dayKeys.forEach(day => {
+    const count = messagesByDay.get(day).length;
+    console.log(`[LinkedIn to Affinity] Day ${day}: ${count} message(s)`);
+  });
 
   const results = {
     notesCreated: 0,
@@ -1702,9 +1709,11 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
       const note = await addNote(personId, noteContent);
       results.notesCreated++;
       results.totalNewMessages += dayMessages.length;
-      console.log('[LinkedIn to Affinity] Created note', note.id, 'for day', dayKey, 'with', dayMessages.length, 'messages');
+      console.log('[LinkedIn to Affinity] ✓ CREATED NEW NOTE for day', dayKey, '- noteId:', note.id, '- messages:', dayMessages.length);
     }
   }
+
+  console.log('[LinkedIn to Affinity] Final result:', results.notesCreated, 'notes created,', results.notesUpdated, 'notes updated,', results.totalNewMessages, 'total messages');
 
   // Apply tags if provided (for existing contacts)
   const tags = conversationData.tags || [];
