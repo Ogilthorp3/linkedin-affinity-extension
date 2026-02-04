@@ -1239,7 +1239,13 @@ function extractMessagesFromNote(noteContent) {
   // Strip other HTML tags but keep content
   normalized = normalized.replace(/<[^>]+>/g, '');
 
+  console.log('[LinkedIn to Affinity] extractMessagesFromNote normalized (first 300):', JSON.stringify(normalized.substring(0, 300)));
+
   const lines = normalized.split('\n');
+
+  // Debug: check for message headers
+  const headerLines = lines.filter(l => l.match(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*$/));
+  console.log('[LinkedIn to Affinity] Found', headerLines.length, 'message headers:', headerLines.slice(0, 2));
   let currentMessage = '';
   let inMessage = false;
 
@@ -1461,7 +1467,9 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
         }
 
         // Extract messages from this note using the new format
+        console.log('[LinkedIn to Affinity] Extracting from note content (first 300 chars):', JSON.stringify(note.content.substring(0, 300)));
         const noteMessages = extractMessagesFromNote(note.content);
+        console.log('[LinkedIn to Affinity] Extracted messages:', Array.from(noteMessages).slice(0, 3));
 
         // Add to notesByDay map
         if (dayKey) {
