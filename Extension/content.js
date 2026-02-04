@@ -432,6 +432,12 @@ function _isConversationItem(element) {
       return today;
     }
 
+    // Time-only timestamps (e.g., "10:10 PM", "6:32 AM") - assume today
+    const timeOnlyMatch = text.match(/^(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)?$/);
+    if (timeOnlyMatch) {
+      return today;
+    }
+
     // Yesterday
     if (lowerText.includes('yesterday')) {
       const yesterday = new Date(now);
