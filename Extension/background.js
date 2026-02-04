@@ -1228,36 +1228,37 @@ function extractMessagesFromNote(noteContent) {
 
   if (!noteContent) return messages;
 
-  const lines = noteContent.split('\n');
+  // Normalize HTML that Affinity might have converted
+  // Convert <br> and <br/> to newlines
+  let normalized = noteContent.replace(/<br\s*\/?>/gi, '\n');
+  // Convert <strong> and <b> back to **
+  normalized = normalized.replace(/<strong>([^<]*)<\/strong>/gi, '**$1**');
+  normalized = normalized.replace(/<b>([^<]*)<\/b>/gi, '**$1**');
+  // Strip other HTML tags but keep content
+  normalized = normalized.replace(/<[^>]+>/g, '');
+
+  const lines = normalized.split('\n');
   let currentMessage = '';
   let inMessage = false;
+
+  // Helper to check if a line is a message header
+  const isMessageHeader = (line) => {
+    if (!line) return false;
+    // New format: **Name** (date/time):
+    if (line.match(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*$/)) return true;
+    // Arrow format: ← **Name** or → **You**
+    if (line.match(/^[←→]\s+\*\*/)) return true;
+    // Old format: **◀︎ or **▶︎
+    if (line.startsWith('**◀︎') || line.startsWith('**▶︎')) return true;
+    return false;
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // New format: **Name** (date/time):
-    if (line.match(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*$/)) {
+    // Check if this line is a message header
+    if (isMessageHeader(line)) {
       // Save previous message
-      if (currentMessage.trim()) {
-        messages.add(currentMessage.trim());
-      }
-      currentMessage = '';
-      inMessage = true;
-      continue;
-    }
-
-    // Arrow format: ← **Name** or → **You**
-    if (line.match(/^[←→]\s+\*\*/)) {
-      if (currentMessage.trim()) {
-        messages.add(currentMessage.trim());
-      }
-      currentMessage = '';
-      inMessage = true;
-      continue;
-    }
-
-    // Old format: **◀︎ or **▶︎
-    if (line.startsWith('**◀︎') || line.startsWith('**▶︎')) {
       if (currentMessage.trim()) {
         messages.add(currentMessage.trim());
       }
@@ -1286,12 +1287,7 @@ function extractMessagesFromNote(noteContent) {
             break;
           }
         }
-        // Check all header formats
-        const isNextHeader = nextLine.match(/^\*\*[^*]+\*\*\s*\([^)]*\):/) ||
-                            nextLine.match(/^[←→]\s+\*\*/) ||
-                            nextLine.startsWith('**◀︎') ||
-                            nextLine.startsWith('**▶︎');
-        if (isNextHeader) {
+        if (isMessageHeader(nextLine)) {
           messages.add(currentMessage.trim());
           currentMessage = '';
         }
