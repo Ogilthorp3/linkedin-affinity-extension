@@ -973,13 +973,53 @@ async function updateNote(noteId, content) {
  * Parse a message timestamp and extract the day key (YYYY-MM-DD)
  * Handles various timestamp formats from LinkedIn
  */
-function parseMessageDay(timestamp) {
+function parseMessageDay(message) {
+  // Handle null/undefined
+  if (!message) return null;
+
+  // If message has pre-parsed date from content.js, use it
+  if (typeof message === 'object' && message.date) {
+    return message.date;
+  }
+
+  // Handle string timestamp (backwards compatibility)
+  const timestamp = typeof message === 'object' ? message.timestamp : message;
   if (!timestamp) return null;
 
   const currentYear = new Date().getFullYear();
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const lowerTimestamp = timestamp.toLowerCase();
 
-  // First, check if this looks like a timestamp without a year (e.g., "Jan 15, 10:30 AM")
-  // We detect this by checking if there's no 4-digit year in the string
+  // Handle relative timestamps
+  if (lowerTimestamp.includes('today') || lowerTimestamp.includes('hour') ||
+      lowerTimestamp.includes('minute') || lowerTimestamp.includes('just now')) {
+    return today;
+  }
+
+  if (lowerTimestamp.includes('yesterday')) {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday.toISOString().split('T')[0];
+  }
+
+  // Days ago
+  const daysAgoMatch = lowerTimestamp.match(/(\d+)\s*days?\s*ago/);
+  if (daysAgoMatch) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - parseInt(daysAgoMatch[1], 10));
+    return date.toISOString().split('T')[0];
+  }
+
+  // Weeks ago
+  const weeksAgoMatch = lowerTimestamp.match(/(\d+)\s*weeks?\s*ago/);
+  if (weeksAgoMatch) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - (parseInt(weeksAgoMatch[1], 10) * 7));
+    return date.toISOString().split('T')[0];
+  }
+
+  // Check if this looks like a timestamp without a year (e.g., "Jan 15, 10:30 AM")
   const hasExplicitYear = /\b20\d{2}\b/.test(timestamp);
 
   if (!hasExplicitYear) {
@@ -995,7 +1035,7 @@ function parseMessageDay(timestamp) {
     }
   }
 
-  // Try standard date parsing for dates with explicit year
+  // Try standard date parsing for dates with explicit year or ISO format
   const date = new Date(timestamp);
 
   if (isNaN(date.getTime())) {
@@ -1021,7 +1061,8 @@ function groupMessagesByDay(messages) {
   const groups = new Map();
 
   messages.forEach(msg => {
-    const dayKey = parseMessageDay(msg.timestamp) || 'unknown';
+    // Pass full message object so parseMessageDay can use pre-parsed date
+    const dayKey = parseMessageDay(msg) || 'unknown';
     if (!groups.has(dayKey)) {
       groups.set(dayKey, []);
     }
@@ -1055,183 +1096,176 @@ function formatDayKeyForDisplay(dayKey) {
 
 /**
  * Format the LinkedIn conversation as a note
- * Note: Profile data (title, company, location, etc.) is now stored in Affinity fields,
- * so the note only contains the conversation and any user-added context.
+ * Minimal Apple-like design: link first, then messages, no redundancy
  */
 function formatConversationNote(data) {
   const { sender, messages, conversationUrl, capturedAt, quickNote, tags } = data;
 
-  const senderName = sender.name || 'Unknown';
-  const messageCount = messages?.length || 0;
+  const senderName = sender?.name || 'Unknown';
   const capturedDate = new Date(capturedAt);
   const dateFormatted = capturedDate.toLocaleDateString('en-US', {
-    weekday: 'short',
     month: 'short',
     day: 'numeric',
     year: 'numeric'
   });
+  const dayKey = capturedDate.toISOString().split('T')[0];
 
-  // Build the note with clean formatting
+  // Extract thread ID
+  const threadIdMatch = conversationUrl.match(/\/(?:thread|conversation)\/([^/?]+)/);
+  const threadId = threadIdMatch ? threadIdMatch[1] : '';
+
+  // Build minimal note
   let note = '';
 
-  // Header
-  note += `# 💬 LinkedIn Conversation\n\n`;
-  note += `**${senderName}** · ${dateFormatted} · ${messageCount} message${messageCount !== 1 ? 's' : ''}\n\n`;
+  // Link first
+  note += `${conversationUrl}\n`;
+  note += `${dateFormatted} · ${dayKey} · ${threadId}\n\n`;
 
-  // Tags section (if any)
+  // Tags inline if present
   if (tags && tags.length > 0) {
-    note += `---\n\n`;
-    note += `🏷️ **Tags:** ${tags.join(', ')}\n\n`;
+    note += `${tags.join(' · ')}\n\n`;
   }
 
-  // Quick note section (if any)
+  // Quick note if present
   if (quickNote) {
-    note += `---\n\n`;
-    note += `📝 **Note:**\n> ${quickNote}\n\n`;
+    note += `> ${quickNote}\n\n`;
   }
 
-  // Conversation section
+  // Messages
   if (messages && messages.length > 0) {
-    note += `---\n\n`;
-    note += `### Conversation\n\n`;
-
     messages.forEach((msg) => {
       const isIncoming = msg.isIncoming;
-      const arrow = isIncoming ? '◀︎' : '▶︎';
-      const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
-      const timestamp = msg.timestamp || '';
+      const arrow = isIncoming ? '←' : '→';
+      const senderLabel = isIncoming ? senderName.split(' ')[0] : 'You';
+      const time = msg.timestampDisplay || msg.timestamp || '';
 
-      // Message header with arrow indicator
-      note += `**${arrow} ${senderLabel}**`;
-      if (timestamp) {
-        note += ` · _${timestamp}_`;
-      }
-      note += `\n`;
-
-      // Message content as blockquote for visual distinction
-      const contentLines = (msg.content || '').split('\n');
-      contentLines.forEach(line => {
-        note += `> ${line}\n`;
-      });
-      note += `\n`;
+      const timeStr = time ? ` (${time})` : '';
+      note += `${arrow} **${senderLabel}**${timeStr}\n`;
+      note += `${msg.content || ''}\n\n`;
     });
   }
-
-  // Footer
-  note += `---\n\n`;
-  note += `🔗 **LinkedIn:** ${conversationUrl}\n`;
 
   return note;
 }
 
 /**
  * Format a day-specific conversation note
- * Used for grouping messages by day
+ * Minimal Apple-like design: link first, then messages, no redundancy
  */
 function formatDayConversationNote(data, dayKey, dayMessages) {
   const { sender, conversationUrl, quickNote, tags } = data;
 
-  const senderName = sender.name || 'Unknown';
-  const messageCount = dayMessages?.length || 0;
-  const dateFormatted = formatDayKeyForDisplay(dayKey);
+  const senderName = sender?.name || 'Unknown';
 
-  // Extract thread ID for compact storage
+  // Extract thread ID for tracking
   const threadIdMatch = conversationUrl.match(/\/(?:thread|conversation)\/([^/?]+)/);
   const threadId = threadIdMatch ? threadIdMatch[1] : '';
 
-  // Build the note with clean formatting
+  // Format date compactly
+  const dateObj = new Date(dayKey + 'T12:00:00');
+  const dateFormatted = dateObj.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
+  // Build minimal note
   let note = '';
 
-  // Header with visible day marker for identification (HTML comments get stripped by Affinity)
-  note += `# 💬 LinkedIn Conversation\n\n`;
-  note += `**${senderName}** · ${dateFormatted} · ${messageCount} message${messageCount !== 1 ? 's' : ''}\n\n`;
+  // Link first (explains context without needing a header)
+  note += `${conversationUrl}\n`;
+  note += `${dateFormatted} · ${dayKey} · ${threadId}\n\n`;
 
-  // Visible day marker for identification (used for finding/updating notes)
-  // Format: 📆 Day: YYYY-MM-DD | Thread: xxx
-  note += `📆 *Day: ${dayKey} | Thread: ${threadId}*\n\n`;
-
-  // Tags section (if any) - only on first day or if explicitly set
+  // Tags inline if present
   if (tags && tags.length > 0) {
-    note += `---\n\n`;
-    note += `🏷️ **Tags:** ${tags.join(', ')}\n\n`;
+    note += `${tags.join(' · ')}\n\n`;
   }
 
-  // Quick note section (if any) - only on first day or if explicitly set
+  // Quick note if present (brief)
   if (quickNote) {
-    note += `---\n\n`;
-    note += `📝 **Note:**\n> ${quickNote}\n\n`;
+    note += `> ${quickNote}\n\n`;
   }
 
-  // Conversation section
+  // Messages - clean and scannable
   if (dayMessages && dayMessages.length > 0) {
-    note += `---\n\n`;
-    note += `### Conversation\n\n`;
-
     dayMessages.forEach((msg) => {
       const isIncoming = msg.isIncoming;
-      const arrow = isIncoming ? '◀︎' : '▶︎';
-      const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
-      const timestamp = msg.timestamp || '';
+      const arrow = isIncoming ? '←' : '→';
+      const senderLabel = isIncoming ? senderName.split(' ')[0] : 'You';
+      const time = msg.timestampDisplay || msg.timestamp || '';
 
-      // Message header with arrow indicator
-      note += `**${arrow} ${senderLabel}**`;
-      if (timestamp) {
-        note += ` · _${timestamp}_`;
-      }
-      note += `\n`;
-
-      // Message content as blockquote for visual distinction
-      const contentLines = (msg.content || '').split('\n');
-      contentLines.forEach(line => {
-        note += `> ${line}\n`;
-      });
-      note += `\n`;
+      // Compact: arrow sender (time): message
+      const timeStr = time ? ` (${time})` : '';
+      note += `${arrow} **${senderLabel}**${timeStr}\n`;
+      note += `${msg.content || ''}\n\n`;
     });
   }
-
-  // Footer
-  note += `---\n\n`;
-  note += `🔗 **LinkedIn:** ${conversationUrl}\n`;
 
   return note;
 }
 
 /**
  * Extract existing messages from a note's content
+ * Supports both old format (blockquotes) and new minimal format
  */
 function extractMessagesFromNote(noteContent) {
   const messages = new Set();
 
   if (!noteContent) return messages;
 
-  // Find the conversation section
-  const conversationStart = noteContent.indexOf('### Conversation');
-  if (conversationStart === -1) return messages;
-
-  const conversationSection = noteContent.substring(conversationStart);
-
-  // Extract message content from blockquotes
-  // Pattern: lines starting with > after a message header
-  const lines = conversationSection.split('\n');
+  const lines = noteContent.split('\n');
   let currentMessage = '';
   let inMessage = false;
 
-  for (const line of lines) {
-    if (line.startsWith('**◀︎') || line.startsWith('**▶︎')) {
-      // Save previous message if exists
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // New format: ← **Name** or → **You**
+    if (line.match(/^[←→]\s+\*\*/)) {
+      // Save previous message
       if (currentMessage.trim()) {
         messages.add(currentMessage.trim());
       }
       currentMessage = '';
       inMessage = true;
-    } else if (line.startsWith('> ') && inMessage) {
-      currentMessage += (currentMessage ? '\n' : '') + line.substring(2);
-    } else if (line.startsWith('---') || line.startsWith('🔗')) {
-      // End of conversation section
+      continue;
+    }
+
+    // Old format: **◀︎ or **▶︎
+    if (line.startsWith('**◀︎') || line.startsWith('**▶︎')) {
       if (currentMessage.trim()) {
         messages.add(currentMessage.trim());
       }
-      break;
+      currentMessage = '';
+      inMessage = true;
+      continue;
+    }
+
+    // Collect message content
+    if (inMessage) {
+      // Old format: blockquote lines
+      if (line.startsWith('> ')) {
+        currentMessage += (currentMessage ? '\n' : '') + line.substring(2);
+      }
+      // New format: plain text until next message or empty line followed by message header
+      else if (line.trim() && !line.startsWith('---') && !line.startsWith('http')) {
+        currentMessage += (currentMessage ? '\n' : '') + line;
+      }
+      // Empty line might end the message
+      else if (line.trim() === '' && currentMessage.trim()) {
+        // Check if next non-empty line is a message header
+        let nextLine = '';
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].trim()) {
+            nextLine = lines[j];
+            break;
+          }
+        }
+        if (nextLine.match(/^[←→]\s+\*\*/) || nextLine.startsWith('**◀︎') || nextLine.startsWith('**▶︎')) {
+          messages.add(currentMessage.trim());
+          currentMessage = '';
+        }
+      }
     }
   }
 
@@ -1245,75 +1279,26 @@ function extractMessagesFromNote(noteContent) {
 
 /**
  * Append messages to an existing note
- * Returns the updated note content
+ * Returns the updated note content (minimal format)
  */
 function appendMessagesToNote(existingContent, newMessages, senderName) {
   if (!newMessages || newMessages.length === 0) return existingContent;
 
-  // Find the footer section to insert before it
-  const footerIndex = existingContent.lastIndexOf('---\n\n🔗');
-
-  if (footerIndex === -1) {
-    // No footer found, just append
-    let appendContent = '\n';
-    newMessages.forEach(msg => {
-      const isIncoming = msg.isIncoming;
-      const arrow = isIncoming ? '◀︎' : '▶︎';
-      const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
-      const timestamp = msg.timestamp || '';
-
-      appendContent += `**${arrow} ${senderLabel}**`;
-      if (timestamp) {
-        appendContent += ` · _${timestamp}_`;
-      }
-      appendContent += `\n`;
-
-      const contentLines = (msg.content || '').split('\n');
-      contentLines.forEach(line => {
-        appendContent += `> ${line}\n`;
-      });
-      appendContent += `\n`;
-    });
-    return existingContent + appendContent;
-  }
-
-  // Insert new messages before the footer
-  const beforeFooter = existingContent.substring(0, footerIndex);
-  const footer = existingContent.substring(footerIndex);
-
-  let newMessagesContent = '';
+  // Format new messages in minimal style
+  let appendContent = '';
   newMessages.forEach(msg => {
     const isIncoming = msg.isIncoming;
-    const arrow = isIncoming ? '◀︎' : '▶︎';
-    const senderLabel = msg.sender || (isIncoming ? senderName : 'You');
-    const timestamp = msg.timestamp || '';
+    const arrow = isIncoming ? '←' : '→';
+    const senderLabel = isIncoming ? (senderName || 'Them').split(' ')[0] : 'You';
+    const time = msg.timestampDisplay || msg.timestamp || '';
 
-    newMessagesContent += `**${arrow} ${senderLabel}**`;
-    if (timestamp) {
-      newMessagesContent += ` · _${timestamp}_`;
-    }
-    newMessagesContent += `\n`;
-
-    const contentLines = (msg.content || '').split('\n');
-    contentLines.forEach(line => {
-      newMessagesContent += `> ${line}\n`;
-    });
-    newMessagesContent += `\n`;
+    const timeStr = time ? ` (${time})` : '';
+    appendContent += `${arrow} **${senderLabel}**${timeStr}\n`;
+    appendContent += `${msg.content || ''}\n\n`;
   });
 
-  // Update the message count in header
-  let updatedBefore = beforeFooter;
-  const messageCountMatch = updatedBefore.match(/(\d+) message/);
-  if (messageCountMatch) {
-    const oldCount = parseInt(messageCountMatch[1], 10);
-    const newCount = oldCount + newMessages.length;
-    updatedBefore = updatedBefore.replace(
-      /(\d+) messages?/,
-      `${newCount} message${newCount !== 1 ? 's' : ''}`
-    );
-  }
-
-  return updatedBefore + newMessagesContent + footer;
+  // Just append to the end (no complex footer handling needed with minimal format)
+  return existingContent.trimEnd() + '\n\n' + appendContent;
 }
 
 /**
@@ -1399,11 +1384,13 @@ async function checkDuplicateAndGetExistingMessages(conversationUrl, personId) {
       // Support both http and https, with or without www
       const noteNormalizedUrls = note.content.match(/https?:\/\/(?:www\.)?linkedin\.com\/messaging\/[^\s)>\]]+/g) || [];
 
-      // Look for visible day marker: 📆 *Day: YYYY-MM-DD | Thread: xxx*
-      const dayMarkerMatch = note.content.match(/📆 \*Day: (\d{4}-\d{2}-\d{2}) \| Thread: ([^*]+)\*/);
+      // Look for day marker in new minimal format (second line): "Jan 15, 2024 · 2024-01-15 · threadId"
+      const newDayMarkerMatch = note.content.match(/\n[A-Za-z]+ \d+, \d{4} · (\d{4}-\d{2}-\d{2}) · ([^\n]+)/);
+      // Also support old emoji format: 📆 *Day: YYYY-MM-DD | Thread: xxx*
+      const emojiDayMarkerMatch = note.content.match(/📆 \*Day: (\d{4}-\d{2}-\d{2}) \| Thread: ([^*]+)\*/);
       // Also support old HTML comment format for backwards compatibility
       const oldDayMarkerMatch = note.content.match(/<!-- day:(\d{4}-\d{2}-\d{2}) thread:([^\s]+) -->/);
-      const effectiveDayMarker = dayMarkerMatch || oldDayMarkerMatch;
+      const effectiveDayMarker = newDayMarkerMatch || emojiDayMarkerMatch || oldDayMarkerMatch;
 
       const urlMatches = noteNormalizedUrls.some(noteUrl => {
         const normalizedNoteUrl = normalizeLinkedInUrl(noteUrl);

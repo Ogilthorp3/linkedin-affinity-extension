@@ -416,6 +416,62 @@ function _isConversationItem(element) {
     });
   }
 
+  /**
+   * Parse relative date strings to YYYY-MM-DD format
+   * Handles: "Today", "Yesterday", "2 hours ago", "Jan 15", etc.
+   */
+  function parseRelativeDate(text) {
+    if (!text) return null;
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const lowerText = text.toLowerCase().trim();
+
+    // Today
+    if (lowerText.includes('today') || lowerText.includes('hour') || lowerText.includes('minute') || lowerText.includes('just now')) {
+      return today;
+    }
+
+    // Yesterday
+    if (lowerText.includes('yesterday')) {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return yesterday.toISOString().split('T')[0];
+    }
+
+    // Days ago (e.g., "3 days ago")
+    const daysAgoMatch = lowerText.match(/(\d+)\s*days?\s*ago/);
+    if (daysAgoMatch) {
+      const daysAgo = parseInt(daysAgoMatch[1], 10);
+      const date = new Date(now);
+      date.setDate(date.getDate() - daysAgo);
+      return date.toISOString().split('T')[0];
+    }
+
+    // Week patterns (e.g., "1 week ago", "2 weeks ago")
+    const weeksAgoMatch = lowerText.match(/(\d+)\s*weeks?\s*ago/);
+    if (weeksAgoMatch) {
+      const weeksAgo = parseInt(weeksAgoMatch[1], 10);
+      const date = new Date(now);
+      date.setDate(date.getDate() - (weeksAgo * 7));
+      return date.toISOString().split('T')[0];
+    }
+
+    // Month + day (e.g., "Jan 15", "January 15")
+    const monthDayMatch = text.match(/([A-Za-z]+)\s+(\d{1,2})(?:,?\s*(\d{4}))?/);
+    if (monthDayMatch) {
+      const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      const monthIndex = monthNames.indexOf(monthDayMatch[1].toLowerCase().substring(0, 3));
+      if (monthIndex !== -1) {
+        const day = parseInt(monthDayMatch[2], 10);
+        const year = monthDayMatch[3] ? parseInt(monthDayMatch[3], 10) : now.getFullYear();
+        return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+
+    return null;
+  }
+
   // Current conversation state
   let currentConversationUrl = null;
   let pendingConversationData = null;
@@ -1029,15 +1085,21 @@ function _isConversationItem(element) {
           'time'
         );
         if (timeEl) {
-          // Try to get ISO datetime attribute first
+          // Try to get ISO datetime attribute first (most reliable)
           const isoDateTime = timeEl.getAttribute('datetime');
           if (isoDateTime) {
-            // Format as readable date and time
+            // Store ISO format for reliable parsing, plus readable format
             const date = new Date(isoDateTime);
-            message.timestamp = date.toLocaleString();
+            message.timestamp = isoDateTime; // Keep ISO for parsing
+            message.timestampDisplay = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            message.date = date.toISOString().split('T')[0]; // YYYY-MM-DD
           } else {
-            // Fall back to text content
-            message.timestamp = timeEl.textContent?.trim();
+            // Fall back to text content and try to parse
+            const textTimestamp = timeEl.textContent?.trim();
+            message.timestamp = textTimestamp;
+            message.timestampDisplay = textTimestamp;
+            // Try to extract date from relative timestamps
+            message.date = parseRelativeDate(textTimestamp);
           }
         }
 

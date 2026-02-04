@@ -20,14 +20,14 @@ const {
 } = require('../Extension/background.js');
 
 describe('formatConversationNote', () => {
-  test('formats basic conversation correctly', () => {
+  test('formats basic conversation with minimal format', () => {
     const data = {
       sender: {
         name: 'John Doe'
       },
       messages: [
-        { sender: 'John Doe', content: 'Hello!', timestamp: '2024-01-15 10:30 AM', isIncoming: true },
-        { sender: 'Me', content: 'Hi there!', timestamp: '2024-01-15 10:35 AM', isIncoming: false }
+        { sender: 'John Doe', content: 'Hello!', timestampDisplay: '10:30 AM', isIncoming: true },
+        { sender: 'Me', content: 'Hi there!', timestampDisplay: '10:35 AM', isIncoming: false }
       ],
       conversationUrl: 'https://linkedin.com/messaging/thread/123',
       capturedAt: '2024-01-15T15:30:00.000Z'
@@ -35,14 +35,13 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('# 💬 LinkedIn Conversation');
-    expect(note).toContain('**John Doe**');
-    expect(note).toContain('2 messages');
-    expect(note).toContain('**LinkedIn:** https://linkedin.com/messaging/thread/123');
-    expect(note).toContain('**◀︎ John Doe**');
-    expect(note).toContain('> Hello!');
-    expect(note).toContain('**▶︎ Me**');
-    expect(note).toContain('> Hi there!');
+    // New minimal format: link first, no header, no blockquotes
+    expect(note).toContain('https://linkedin.com/messaging/thread/123');
+    expect(note).toContain('2024-01-15');
+    expect(note).toContain('← **John**');
+    expect(note).toContain('Hello!');
+    expect(note).toContain('→ **You**');
+    expect(note).toContain('Hi there!');
   });
 
   test('handles missing sender headline', () => {
@@ -55,8 +54,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('**Jane Smith**');
-    expect(note).toContain('**LinkedIn:**');
+    // New format: link is the first line
+    expect(note).toContain('https://linkedin.com/messaging/thread/456');
   });
 
   test('handles missing messages', () => {
@@ -69,10 +68,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    // Note should still be created with basic info
-    expect(note).toContain('**Test User**');
-    expect(note).toContain('0 messages');
-    expect(note).not.toContain('### Conversation'); // No conversation section
+    // Note should still be created with link
+    expect(note).toContain('https://linkedin.com/messaging/thread/789');
   });
 
   test('handles empty messages array', () => {
@@ -85,10 +82,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    // Note should still be created with basic info
-    expect(note).toContain('**Test User**');
-    expect(note).toContain('0 messages');
-    expect(note).not.toContain('### Conversation'); // No conversation section
+    // Note should still be created with link
+    expect(note).toContain('https://linkedin.com/messaging/thread/789');
   });
 
   test('handles message without timestamp', () => {
@@ -101,9 +96,9 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('**◀︎ Test User**');
-    expect(note).toContain('> No timestamp here');
-    expect(note).not.toContain('· _\n'); // No empty timestamp
+    // New format: uses first name for incoming, no blockquotes
+    expect(note).toContain('← **Test**');
+    expect(note).toContain('No timestamp here');
   });
 
   test('uses sender name fallback when message sender is missing', () => {
@@ -119,8 +114,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('**◀︎ Test User**'); // Uses sender name for incoming
-    expect(note).toContain('**▶︎ You**'); // Uses "You" for outgoing
+    expect(note).toContain('← **Test**'); // Uses first name for incoming
+    expect(note).toContain('→ **You**'); // Uses "You" for outgoing
   });
 
   test('includes quick note when provided', () => {
@@ -134,7 +129,7 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('📝 **Note:**');
+    // New format: quickNote as blockquote
     expect(note).toContain('> Met at Web Summit 2024, interested in Series A');
   });
 
@@ -149,7 +144,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).not.toContain('📝 **Note:**');
+    // No blockquote when quickNote is empty
+    expect(note).not.toContain('> ');
   });
 
   test('does not include note section when quickNote is undefined', () => {
@@ -162,7 +158,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).not.toContain('📝 **Note:**');
+    // No blockquote when quickNote is undefined
+    expect(note).not.toContain('> ');
   });
 
   test('includes tags when provided', () => {
@@ -176,8 +173,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('🏷️ **Tags:**');
-    expect(note).toContain('Founder, Series A');
+    // New minimal format: tags are space-separated inline
+    expect(note).toContain('Founder · Series A');
   });
 
   test('formats multiline messages correctly', () => {
@@ -192,9 +189,8 @@ describe('formatConversationNote', () => {
 
     const note = formatConversationNote(data);
 
-    expect(note).toContain('> Line 1');
-    expect(note).toContain('> Line 2');
-    expect(note).toContain('> Line 3');
+    // New minimal format: no blockquotes, just content
+    expect(note).toContain('Line 1\nLine 2\nLine 3');
   });
 });
 
@@ -467,24 +463,16 @@ describe('formatDayKeyForDisplay', () => {
 describe('extractMessagesFromNote', () => {
   const { extractMessagesFromNote } = require('../Extension/background.js');
 
-  test('extracts messages from note with new format', () => {
-    const noteContent = `# 💬 LinkedIn Conversation
+  test('extracts messages from note with new minimal format', () => {
+    const noteContent = `https://linkedin.com/messaging/thread/123
+Jan 15, 2024 · 2024-01-15 · 123
 
-**John Doe** · Mon, Jan 15, 2024 · 2 messages
+← **John** (10:30 AM)
+Hello there!
 
----
-
-### Conversation
-
-**◀︎ John Doe** · _Jan 15, 10:30 AM_
-> Hello there!
-
-**▶︎ You** · _Jan 15, 10:35 AM_
-> Hi John!
-
----
-
-🔗 **LinkedIn:** https://linkedin.com`;
+→ **You** (10:35 AM)
+Hi John!
+`;
 
     const result = extractMessagesFromNote(noteContent);
 
@@ -519,33 +507,24 @@ describe('extractMessagesFromNote', () => {
 describe('appendMessagesToNote', () => {
   const { appendMessagesToNote } = require('../Extension/background.js');
 
-  test('appends messages before footer', () => {
-    const existingContent = `# 💬 LinkedIn Conversation
+  test('appends messages to end of note', () => {
+    const existingContent = `https://linkedin.com/messaging/thread/123
+Jan 15, 2024 · 2024-01-15 · 123
 
-**John** · Mon, Jan 15, 2024 · 1 message
-
----
-
-### Conversation
-
-**◀︎ John**
-> Hello!
-
----
-
-🔗 **LinkedIn:** https://linkedin.com`;
+← **John** (10:30 AM)
+Hello!
+`;
 
     const newMessages = [
-      { content: 'Hi back!', isIncoming: false, timestamp: 'Jan 15, 10:35 AM' }
+      { content: 'Hi back!', isIncoming: false, timestampDisplay: '10:35 AM' }
     ];
 
     const result = appendMessagesToNote(existingContent, newMessages, 'John');
 
-    expect(result).toContain('> Hello!');
-    expect(result).toContain('> Hi back!');
-    expect(result).toContain('**▶︎ You**');
-    expect(result).toContain('2 messages'); // Updated count
-    expect(result).toContain('🔗 **LinkedIn:**'); // Footer preserved
+    expect(result).toContain('Hello!');
+    expect(result).toContain('Hi back!');
+    expect(result).toContain('→ **You**');
+    expect(result).toContain('10:35 AM');
   });
 
   test('returns original content if no new messages', () => {
@@ -558,7 +537,7 @@ describe('appendMessagesToNote', () => {
 describe('formatDayConversationNote', () => {
   const { formatDayConversationNote } = require('../Extension/background.js');
 
-  test('formats day-specific note with day marker', () => {
+  test('formats day-specific note with minimal format', () => {
     const data = {
       sender: { name: 'John Doe' },
       conversationUrl: 'https://linkedin.com/messaging/thread/123',
@@ -566,23 +545,22 @@ describe('formatDayConversationNote', () => {
       quickNote: 'Great call!'
     };
     const dayMessages = [
-      { content: 'Hello!', isIncoming: true, timestamp: 'Jan 15, 10:30 AM' }
+      { content: 'Hello!', isIncoming: true, timestampDisplay: '10:30 AM' }
     ];
 
     const result = formatDayConversationNote(data, '2024-01-15', dayMessages);
 
-    expect(result).toContain('# 💬 LinkedIn Conversation');
-    expect(result).toContain('**John Doe**');
-    // Day marker is now visible text (not HTML comment which Affinity strips)
-    expect(result).toContain('📆 *Day: 2024-01-15 | Thread: 123*');
-    expect(result).toContain('🏷️ **Tags:** Founder');
-    expect(result).toContain('📝 **Note:**');
+    // New minimal format: link first, date with day marker, tags inline
+    expect(result).toContain('https://linkedin.com/messaging/thread/123');
+    expect(result).toContain('2024-01-15');
+    expect(result).toContain('123'); // Thread ID
+    expect(result).toContain('Founder');
     expect(result).toContain('> Great call!');
-    expect(result).toContain('**◀︎ John Doe**');
-    expect(result).toContain('> Hello!');
+    expect(result).toContain('← **John**');
+    expect(result).toContain('Hello!');
   });
 
-  test('omits tags and note sections when empty', () => {
+  test('omits tags and note when empty', () => {
     const data = {
       sender: { name: 'Jane' },
       conversationUrl: 'https://linkedin.com/messaging/thread/456',
@@ -593,8 +571,10 @@ describe('formatDayConversationNote', () => {
 
     const result = formatDayConversationNote(data, '2024-01-16', dayMessages);
 
-    expect(result).not.toContain('🏷️ **Tags:**');
-    expect(result).not.toContain('📝 **Note:**');
+    // Should not have tags or quickNote sections
+    expect(result).not.toContain('Founder');
+    expect(result).not.toContain('>');  // No blockquote for empty quickNote
+    expect(result).toContain('Hi');     // But message content is present
   });
 });
 
