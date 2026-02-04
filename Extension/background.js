@@ -1111,30 +1111,25 @@ function formatDayKeyForDisplay(dayKey) {
 
 /**
  * Format the LinkedIn conversation as a note
- * Minimal Apple-like design: link first, then messages, no redundancy
+ * Clean format with full sender names and date/time
  */
 function formatConversationNote(data) {
   const { sender, messages, conversationUrl, capturedAt, quickNote, tags } = data;
 
   const senderName = sender?.name || 'Unknown';
   const capturedDate = new Date(capturedAt);
-  const dateFormatted = capturedDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
   const dayKey = capturedDate.toISOString().split('T')[0];
 
   // Extract thread ID
   const threadIdMatch = conversationUrl.match(/\/(?:thread|conversation)\/([^/?]+)/);
   const threadId = threadIdMatch ? threadIdMatch[1] : '';
 
-  // Build minimal note
+  // Build note
   let note = '';
 
   // Link first
   note += `${conversationUrl}\n`;
-  note += `${dateFormatted} · ${dayKey} · ${threadId}\n\n`;
+  note += `${dayKey} · ${threadId}\n\n`;
 
   // Tags inline if present
   if (tags && tags.length > 0) {
@@ -1146,16 +1141,23 @@ function formatConversationNote(data) {
     note += `> ${quickNote}\n\n`;
   }
 
-  // Messages
+  // Messages with full sender name and date/time
   if (messages && messages.length > 0) {
     messages.forEach((msg) => {
-      const isIncoming = msg.isIncoming;
-      const arrow = isIncoming ? '←' : '→';
-      const senderLabel = isIncoming ? senderName.split(' ')[0] : 'You';
-      const time = msg.timestampDisplay || msg.timestamp || '';
+      // Get the actual sender name from the message, or use context
+      const msgSender = msg.sender || (msg.isIncoming ? senderName : 'You');
 
-      const timeStr = time ? ` (${time})` : '';
-      note += `${arrow} **${senderLabel}**${timeStr}\n`;
+      // Format date as YY/MM/DD
+      const msgDate = msg.date || dayKey;
+      const datePart = msgDate ? msgDate.substring(2).replace(/-/g, '/') : '';
+
+      // Get time display
+      const timePart = msg.timestampDisplay || '';
+
+      // Combine date and time
+      const dateTimeStr = datePart && timePart ? `${datePart} ${timePart}` : (timePart || datePart);
+
+      note += `**${msgSender}** (${dateTimeStr}):\n`;
       note += `${msg.content || ''}\n\n`;
     });
   }
@@ -1165,7 +1167,7 @@ function formatConversationNote(data) {
 
 /**
  * Format a day-specific conversation note
- * Minimal Apple-like design: link first, then messages, no redundancy
+ * Clean format with full sender names and date/time
  */
 function formatDayConversationNote(data, dayKey, dayMessages) {
   const { sender, conversationUrl, quickNote, tags } = data;
@@ -1176,42 +1178,40 @@ function formatDayConversationNote(data, dayKey, dayMessages) {
   const threadIdMatch = conversationUrl.match(/\/(?:thread|conversation)\/([^/?]+)/);
   const threadId = threadIdMatch ? threadIdMatch[1] : '';
 
-  // Format date compactly
-  const dateObj = new Date(dayKey + 'T12:00:00');
-  const dateFormatted = dateObj.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
-
-  // Build minimal note
+  // Build note
   let note = '';
 
-  // Link first (explains context without needing a header)
+  // Link first
   note += `${conversationUrl}\n`;
-  note += `${dateFormatted} · ${dayKey} · ${threadId}\n\n`;
+  note += `${dayKey} · ${threadId}\n\n`;
 
   // Tags inline if present
   if (tags && tags.length > 0) {
     note += `${tags.join(' · ')}\n\n`;
   }
 
-  // Quick note if present (brief)
+  // Quick note if present
   if (quickNote) {
     note += `> ${quickNote}\n\n`;
   }
 
-  // Messages - clean and scannable
+  // Messages with full sender name and date/time
   if (dayMessages && dayMessages.length > 0) {
     dayMessages.forEach((msg) => {
-      const isIncoming = msg.isIncoming;
-      const arrow = isIncoming ? '←' : '→';
-      const senderLabel = isIncoming ? senderName.split(' ')[0] : 'You';
-      const time = msg.timestampDisplay || msg.timestamp || '';
+      // Get the actual sender name from the message, or use context
+      const msgSender = msg.sender || (msg.isIncoming ? senderName : 'You');
 
-      // Compact: arrow sender (time): message
-      const timeStr = time ? ` (${time})` : '';
-      note += `${arrow} **${senderLabel}**${timeStr}\n`;
+      // Format date as YY/MM/DD from the message's date or dayKey
+      const msgDate = msg.date || dayKey;
+      const datePart = msgDate ? msgDate.substring(2).replace(/-/g, '/') : '';
+
+      // Get time display
+      const timePart = msg.timestampDisplay || '';
+
+      // Combine date and time
+      const dateTimeStr = datePart && timePart ? `${datePart} ${timePart}` : (timePart || datePart);
+
+      note += `**${msgSender}** (${dateTimeStr}):\n`;
       note += `${msg.content || ''}\n\n`;
     });
   }
@@ -1221,7 +1221,7 @@ function formatDayConversationNote(data, dayKey, dayMessages) {
 
 /**
  * Extract existing messages from a note's content
- * Supports both old format (blockquotes) and new minimal format
+ * Supports multiple formats for backwards compatibility
  */
 function extractMessagesFromNote(noteContent) {
   const messages = new Set();
@@ -1235,9 +1235,19 @@ function extractMessagesFromNote(noteContent) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // New format: ← **Name** or → **You**
-    if (line.match(/^[←→]\s+\*\*/)) {
+    // New format: **Name** (date/time):
+    if (line.match(/^\*\*[^*]+\*\*\s*\([^)]*\):\s*$/)) {
       // Save previous message
+      if (currentMessage.trim()) {
+        messages.add(currentMessage.trim());
+      }
+      currentMessage = '';
+      inMessage = true;
+      continue;
+    }
+
+    // Arrow format: ← **Name** or → **You**
+    if (line.match(/^[←→]\s+\*\*/)) {
       if (currentMessage.trim()) {
         messages.add(currentMessage.trim());
       }
@@ -1262,7 +1272,7 @@ function extractMessagesFromNote(noteContent) {
       if (line.startsWith('> ')) {
         currentMessage += (currentMessage ? '\n' : '') + line.substring(2);
       }
-      // New format: plain text until next message or empty line followed by message header
+      // Plain text until next message header or empty line
       else if (line.trim() && !line.startsWith('---') && !line.startsWith('http')) {
         currentMessage += (currentMessage ? '\n' : '') + line;
       }
@@ -1276,7 +1286,12 @@ function extractMessagesFromNote(noteContent) {
             break;
           }
         }
-        if (nextLine.match(/^[←→]\s+\*\*/) || nextLine.startsWith('**◀︎') || nextLine.startsWith('**▶︎')) {
+        // Check all header formats
+        const isNextHeader = nextLine.match(/^\*\*[^*]+\*\*\s*\([^)]*\):/) ||
+                            nextLine.match(/^[←→]\s+\*\*/) ||
+                            nextLine.startsWith('**◀︎') ||
+                            nextLine.startsWith('**▶︎');
+        if (isNextHeader) {
           messages.add(currentMessage.trim());
           currentMessage = '';
         }
@@ -1294,25 +1309,32 @@ function extractMessagesFromNote(noteContent) {
 
 /**
  * Append messages to an existing note
- * Returns the updated note content (minimal format)
+ * Returns the updated note content
  */
 function appendMessagesToNote(existingContent, newMessages, senderName) {
   if (!newMessages || newMessages.length === 0) return existingContent;
 
-  // Format new messages in minimal style
+  // Format new messages
   let appendContent = '';
   newMessages.forEach(msg => {
-    const isIncoming = msg.isIncoming;
-    const arrow = isIncoming ? '←' : '→';
-    const senderLabel = isIncoming ? (senderName || 'Them').split(' ')[0] : 'You';
-    const time = msg.timestampDisplay || msg.timestamp || '';
+    // Get the actual sender name from the message, or use context
+    const msgSender = msg.sender || (msg.isIncoming ? senderName : 'You');
 
-    const timeStr = time ? ` (${time})` : '';
-    appendContent += `${arrow} **${senderLabel}**${timeStr}\n`;
+    // Format date as YY/MM/DD
+    const msgDate = msg.date || '';
+    const datePart = msgDate ? msgDate.substring(2).replace(/-/g, '/') : '';
+
+    // Get time display
+    const timePart = msg.timestampDisplay || '';
+
+    // Combine date and time
+    const dateTimeStr = datePart && timePart ? `${datePart} ${timePart}` : (timePart || datePart);
+
+    appendContent += `**${msgSender}** (${dateTimeStr}):\n`;
     appendContent += `${msg.content || ''}\n\n`;
   });
 
-  // Just append to the end (no complex footer handling needed with minimal format)
+  // Append to the end
   return existingContent.trimEnd() + '\n\n' + appendContent;
 }
 
