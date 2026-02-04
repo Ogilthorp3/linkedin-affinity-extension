@@ -1235,8 +1235,10 @@ function extractMessagesFromNote(noteContent) {
   if (!noteContent) return messages;
 
   // Normalize content that Affinity might have transformed
-  // Unescape asterisks that Affinity escapes (e.g., \*\* -> **)
-  let normalized = noteContent.replace(/\\\*/g, '*');
+  // Unescape asterisks that Affinity escapes - handle multiple levels of escaping
+  // Each update doubles the escapes: ** -> \*\* -> \\*\\* -> \\\*\\\*
+  // First remove all backslashes before asterisks (handles any level of escaping)
+  let normalized = noteContent.replace(/\\+\*/g, '*');
   // Convert <br> and <br/> to newlines
   normalized = normalized.replace(/<br\s*\/?>/gi, '\n');
   // Convert <strong> and <b> back to **
