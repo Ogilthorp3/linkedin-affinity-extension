@@ -1076,6 +1076,64 @@ function _isConversationItem(element) {
   }
 
   /**
+   * Parse a date separator text like "MAY 24, 2023", "JAN 26", "TUESDAY", "TODAY", "YESTERDAY"
+   */
+  function parseDateSeparator(text) {
+    if (!text) return null;
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const upperText = text.toUpperCase().trim();
+
+    // Handle "TODAY"
+    if (upperText === 'TODAY') {
+      return today;
+    }
+
+    // Handle "YESTERDAY"
+    if (upperText === 'YESTERDAY') {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return yesterday.toISOString().split('T')[0];
+    }
+
+    // Handle day names like "TUESDAY", "MONDAY" etc - calculate date
+    const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const dayIndex = dayNames.indexOf(upperText);
+    if (dayIndex !== -1) {
+      const currentDayIndex = now.getDay();
+      let daysAgo = currentDayIndex - dayIndex;
+      if (daysAgo <= 0) daysAgo += 7; // Must be in the past week
+      const date = new Date(now);
+      date.setDate(date.getDate() - daysAgo);
+      return date.toISOString().split('T')[0];
+    }
+
+    // Handle "MAY 24, 2023" or "MAY 24" format
+    const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const fullMonthMatch = upperText.match(/^([A-Z]+)\s+(\d{1,2})(?:,?\s*(\d{4}))?$/);
+    if (fullMonthMatch) {
+      const monthIndex = monthNames.indexOf(fullMonthMatch[1].substring(0, 3));
+      if (monthIndex !== -1) {
+        const day = parseInt(fullMonthMatch[2], 10);
+        let year = fullMonthMatch[3] ? parseInt(fullMonthMatch[3], 10) : now.getFullYear();
+
+        // If no year and the date would be in the future, use last year
+        if (!fullMonthMatch[3]) {
+          const candidateDate = new Date(year, monthIndex, day);
+          if (candidateDate > now) {
+            year = year - 1;
+          }
+        }
+
+        return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Extract messages from the current conversation
    */
   function extractMessages() {
@@ -1083,10 +1141,39 @@ function _isConversationItem(element) {
     const seenContent = new Set(); // Track seen messages to avoid duplicates
 
     try {
-      // Find all message items in the conversation - use specific selector to avoid duplicates
-      const messageElements = document.querySelectorAll('.msg-s-event-listitem');
+      // Get the message list container
+      const messageList = document.querySelector('.msg-s-message-list-content, .msg-s-message-list');
+      if (!messageList) {
+        console.log('[LinkedIn to Affinity] No message list found');
+        return messages;
+      }
 
-      messageElements.forEach((msgEl) => {
+      // Get all children in order - includes both date separators and messages
+      const allElements = messageList.querySelectorAll('.msg-s-event-listitem, .msg-s-message-list__time-heading, [class*="time-heading"]');
+
+      let currentDate = null; // Track the current date context from separators
+
+      console.log('[LinkedIn to Affinity] Found', allElements.length, 'elements in message list');
+
+      allElements.forEach((el) => {
+        // Check if this is a date separator
+        const isDateSeparator = el.classList.contains('msg-s-message-list__time-heading') ||
+                                el.querySelector('[class*="time-heading"]') ||
+                                el.className.includes('time-heading');
+
+        // Also check for date text in the element
+        const dateText = el.textContent?.trim();
+        const parsedDate = parseDateSeparator(dateText);
+
+        if (parsedDate && dateText && dateText.length < 20) {
+          // This looks like a date separator
+          currentDate = parsedDate;
+          console.log('[LinkedIn to Affinity] Found date separator:', dateText, '-> parsed as:', currentDate);
+          return; // Continue to next element
+        }
+
+        // Otherwise, treat as a message element
+        const msgEl = el;
         const message = {
           sender: null,
           content: null,
@@ -1137,6 +1224,12 @@ function _isConversationItem(element) {
           }
         }
 
+        // If we still don't have a date but we have a current date from separator, use it
+        if (!message.date && currentDate) {
+          message.date = currentDate;
+          console.log('[LinkedIn to Affinity] Using date from separator:', currentDate, 'for message');
+        }
+
         // Determine if incoming (not from current user)
         // Method 1: Check CSS classes for outbound indicator
         const hasOutboundClass = msgEl.classList.contains('msg-s-event-listitem--outbound') ||
@@ -1158,6 +1251,7 @@ function _isConversationItem(element) {
         // Debug logging
         console.log('[LinkedIn to Affinity] Message:', {
           sender: message.sender,
+          date: message.date,
           isOutgoing,
           hasOutboundClass: !!hasOutboundClass,
           isSelfByName,
