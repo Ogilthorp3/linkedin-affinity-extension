@@ -45,6 +45,20 @@
   white-space: nowrap;
 }
 
+/* Synced state - previously synced contacts */
+.affinity-send-btn.affinity-synced,
+#affinity-send-btn.affinity-synced {
+  background: transparent;
+  border-color: #34c759;
+  color: #34c759;
+}
+
+.affinity-send-btn.affinity-synced:hover,
+#affinity-send-btn.affinity-synced:hover {
+  background: #34c759;
+  color: #ffffff;
+}
+
 /* Loading state */
 .affinity-send-btn.affinity-loading,
 #affinity-send-btn.affinity-loading {
@@ -344,6 +358,114 @@
   color: #ffffff;
 }
 
+/* Contact actions container */
+.affinity-contact-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Preview toggle button */
+.affinity-contact-preview-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid #d1d1d6;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.affinity-contact-preview-btn:hover {
+  background: #f0f0f5;
+}
+
+/* Affinity preview data section */
+.affinity-contact-preview-data {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  background: #f5f5f7;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.affinity-contact-preview-data .affinity-preview-loading {
+  color: #86868b;
+  text-align: center;
+  padding: 8px;
+}
+
+.affinity-preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.affinity-preview-stat {
+  color: #1d1d1f;
+}
+
+.affinity-preview-note {
+  font-style: italic;
+  color: #666;
+  padding: 6px 8px;
+  background: #ffffff;
+  border-radius: 4px;
+  margin-left: 20px;
+}
+
+.affinity-preview-date {
+  color: #86868b;
+  font-style: normal;
+  font-size: 11px;
+}
+
+.affinity-preview-empty {
+  color: #86868b;
+  text-align: center;
+  padding: 8px;
+}
+
+/* Calendar integration section */
+.affinity-calendar-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f0fe 100%);
+  border-radius: 8px;
+  border: 1px solid #d0e0f5;
+}
+
+.affinity-calendar-icon {
+  font-size: 16px;
+}
+
+.affinity-calendar-text {
+  flex: 1;
+  font-size: 12px;
+  color: #1d1d1f;
+}
+
+.affinity-calendar-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #0a66c2;
+  background: #ffffff;
+  border: 1px solid #0a66c2;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.affinity-calendar-btn:hover {
+  background: #0a66c2;
+  color: #ffffff;
+}
+
 .affinity-no-matches {
   padding: 20px;
   text-align: center;
@@ -459,6 +581,64 @@
   font-weight: 500;
 }
 
+/* Conversation stats section */
+.affinity-stats-section {
+  padding: 12px 20px;
+  border-top: 1px solid #e5e5e5;
+  background: #f5f5f7;
+}
+
+.affinity-stats-grid {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.affinity-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+}
+
+.affinity-stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  line-height: 1.2;
+}
+
+.affinity-stat-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.affinity-stats-empty {
+  text-align: center;
+  font-size: 12px;
+  color: #86868b;
+}
+
+/* Engagement score colors */
+.affinity-engagement-hot .affinity-stat-value {
+  color: #ff3b30;
+}
+
+.affinity-engagement-warm .affinity-stat-value {
+  color: #ff9f0a;
+}
+
+.affinity-engagement-active .affinity-stat-value {
+  color: #34c759;
+}
+
+.affinity-engagement-cold .affinity-stat-value {
+  color: #8e8e93;
+}
+
 /* Tags section for VC workflow */
 .affinity-tags-section {
   padding: 12px 20px;
@@ -503,6 +683,52 @@
   color: #ffffff;
 }
 
+/* Tag hint for AI suggestions */
+.affinity-tag-hint {
+  font-size: 10px;
+  font-weight: 400;
+  color: #86868b;
+  margin-left: 4px;
+}
+
+/* Suggested tags styling */
+.affinity-tag.affinity-suggested {
+  position: relative;
+}
+
+.affinity-tag.affinity-suggested::after {
+  content: '✨';
+  font-size: 8px;
+  position: absolute;
+  top: -4px;
+  right: -4px;
+}
+
+.affinity-tag.affinity-suggested-high {
+  border-color: #34c759;
+  background: rgba(52, 199, 89, 0.1);
+}
+
+.affinity-tag.affinity-suggested-medium {
+  border-color: #ff9f0a;
+  background: rgba(255, 159, 10, 0.08);
+}
+
+.affinity-tag.affinity-suggested-high:hover {
+  border-color: #34c759;
+  background: rgba(52, 199, 89, 0.2);
+}
+
+.affinity-tag.affinity-suggested-medium:hover {
+  border-color: #ff9f0a;
+  background: rgba(255, 159, 10, 0.15);
+}
+
+.affinity-tag.affinity-suggested.selected {
+  background: #0a66c2;
+  border-color: #0a66c2;
+}
+
 /* Quick notes section */
 .affinity-notes-section {
   padding: 12px 20px;
@@ -540,6 +766,39 @@
 
 .affinity-notes-input::placeholder {
   color: #86868b;
+}
+
+/* List selector section */
+.affinity-list-section {
+  padding: 12px 20px;
+  border-top: 1px solid #e5e5e5;
+  background: #fafafa;
+}
+
+.affinity-list-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #86868b;
+  margin-bottom: 8px;
+}
+
+.affinity-list-select {
+  width: 100%;
+  padding: 8px 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #1d1d1f;
+  background: #ffffff;
+  border: 1px solid #d1d1d6;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.affinity-list-select:focus {
+  outline: none;
+  border-color: #0a66c2;
 }
 
 .affinity-modal-footer {
@@ -925,6 +1184,19 @@
     color: #1d2226;
   }
 
+  /* Synced state - dark mode */
+  .affinity-send-btn.affinity-synced,
+  #affinity-send-btn.affinity-synced {
+    border-color: #30d158;
+    color: #30d158;
+  }
+
+  .affinity-send-btn.affinity-synced:hover,
+  #affinity-send-btn.affinity-synced:hover {
+    background: #30d158;
+    color: #1d2226;
+  }
+
   /* Loading state */
   .affinity-send-btn.affinity-loading,
   #affinity-send-btn.affinity-loading {
@@ -1010,6 +1282,48 @@
     color: #1d2226;
   }
 
+  .affinity-contact-preview-btn {
+    border-color: #48484a;
+    color: #b0b7bd;
+  }
+
+  .affinity-contact-preview-btn:hover {
+    background: #38434f;
+  }
+
+  .affinity-contact-preview-data {
+    background: #283038;
+  }
+
+  .affinity-preview-stat {
+    color: #ffffff;
+  }
+
+  .affinity-preview-note {
+    color: #b0b7bd;
+    background: #1d2226;
+  }
+
+  .affinity-calendar-section {
+    background: linear-gradient(135deg, #1c2d3c 0%, #253545 100%);
+    border-color: #38434f;
+  }
+
+  .affinity-calendar-text {
+    color: #ffffff;
+  }
+
+  .affinity-calendar-btn {
+    color: #70b5f9;
+    background: #1d2226;
+    border-color: #70b5f9;
+  }
+
+  .affinity-calendar-btn:hover {
+    background: #70b5f9;
+    color: #1d2226;
+  }
+
   .affinity-no-matches {
     color: #ffffff;
   }
@@ -1053,6 +1367,165 @@
     color: #30d158;
   }
 
+  /* Stats section */
+  .affinity-stats-section {
+    border-top-color: #38434f;
+    background: #283038;
+  }
+
+  .affinity-stat-value {
+    color: #ffffff;
+  }
+
+  .affinity-stat-label {
+    color: #b0b7bd;
+  }
+
+  .affinity-stats-empty {
+    color: #b0b7bd;
+  }
+
+  /* Bulk Sync Mode */
+.affinity-bulk-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1d1d1f;
+  background: #f5f5f7;
+  border: 1px solid #d2d2d7;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.affinity-bulk-toggle:hover {
+  background: #e8e8ed;
+}
+
+.affinity-bulk-toggle.active {
+  background: #0a66c2;
+  border-color: #0a66c2;
+  color: #ffffff;
+}
+
+.affinity-bulk-checkbox {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 2px solid #d2d2d7;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: transparent;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.affinity-bulk-checkbox:hover {
+  border-color: #0a66c2;
+}
+
+.affinity-bulk-checkbox.selected {
+  background: #0a66c2;
+  border-color: #0a66c2;
+  color: #ffffff;
+}
+
+.affinity-bulk-checkbox.synced {
+  background: #34c759;
+  border-color: #34c759;
+  color: #ffffff;
+}
+
+.affinity-bulk-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #ffffff;
+  border-top: 1px solid #e5e5e7;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 10000;
+}
+
+.affinity-bulk-count {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d1d1f;
+}
+
+.affinity-bulk-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.affinity-bulk-cancel,
+.affinity-bulk-sync {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.affinity-bulk-cancel {
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+.affinity-bulk-cancel:hover {
+  background: #e8e8ed;
+}
+
+.affinity-bulk-sync {
+  background: #0a66c2;
+  color: #ffffff;
+}
+
+.affinity-bulk-sync:hover:not(:disabled) {
+  background: #004182;
+}
+
+.affinity-bulk-sync:disabled {
+  background: #d2d2d7;
+  cursor: not-allowed;
+}
+
+/* Engagement score colors (dark mode) */
+  .affinity-engagement-hot .affinity-stat-value {
+    color: #ff453a;
+  }
+
+  .affinity-engagement-warm .affinity-stat-value {
+    color: #ff9f0a;
+  }
+
+  .affinity-engagement-active .affinity-stat-value {
+    color: #30d158;
+  }
+
+  .affinity-engagement-cold .affinity-stat-value {
+    color: #b0b7bd;
+  }
+
   /* Tags section */
   .affinity-tags-section {
     border-top-color: #38434f;
@@ -1080,6 +1553,35 @@
     color: #1d2226;
   }
 
+  .affinity-tag-hint {
+    color: #b0b7bd;
+  }
+
+  .affinity-tag.affinity-suggested-high {
+    border-color: #30d158;
+    background: rgba(48, 209, 88, 0.15);
+  }
+
+  .affinity-tag.affinity-suggested-medium {
+    border-color: #ff9f0a;
+    background: rgba(255, 159, 10, 0.12);
+  }
+
+  .affinity-tag.affinity-suggested-high:hover {
+    border-color: #30d158;
+    background: rgba(48, 209, 88, 0.25);
+  }
+
+  .affinity-tag.affinity-suggested-medium:hover {
+    border-color: #ff9f0a;
+    background: rgba(255, 159, 10, 0.2);
+  }
+
+  .affinity-tag.affinity-suggested.selected {
+    background: #70b5f9;
+    border-color: #70b5f9;
+  }
+
   /* Notes section */
   .affinity-notes-section {
     border-top-color: #38434f;
@@ -1103,6 +1605,26 @@
 
   .affinity-notes-input::placeholder {
     color: #666;
+  }
+
+  /* List selector - dark mode */
+  .affinity-list-section {
+    border-top-color: #38434f;
+    background: #283038;
+  }
+
+  .affinity-list-label {
+    color: #b0b7bd;
+  }
+
+  .affinity-list-select {
+    color: #ffffff;
+    background: #1d2226;
+    border-color: #38434f;
+  }
+
+  .affinity-list-select:focus {
+    border-color: #70b5f9;
   }
 
   /* Footer */
@@ -1187,6 +1709,76 @@
   }
 
   .affinity-followup-skip {
+    color: #666;
+  }
+
+  /* Bulk Sync Mode - Dark */
+  .affinity-bulk-toggle {
+    color: #ffffff;
+    background: #38434f;
+    border-color: #48484a;
+  }
+
+  .affinity-bulk-toggle:hover {
+    background: #48484a;
+  }
+
+  .affinity-bulk-toggle.active {
+    background: #70b5f9;
+    border-color: #70b5f9;
+    color: #1d2226;
+  }
+
+  .affinity-bulk-checkbox {
+    background: #1d2226;
+    border-color: #48484a;
+  }
+
+  .affinity-bulk-checkbox:hover {
+    border-color: #70b5f9;
+  }
+
+  .affinity-bulk-checkbox.selected {
+    background: #70b5f9;
+    border-color: #70b5f9;
+    color: #1d2226;
+  }
+
+  .affinity-bulk-checkbox.synced {
+    background: #30d158;
+    border-color: #30d158;
+    color: #1d2226;
+  }
+
+  .affinity-bulk-toolbar {
+    background: #1d2226;
+    border-top-color: #38434f;
+  }
+
+  .affinity-bulk-count {
+    color: #ffffff;
+  }
+
+  .affinity-bulk-cancel {
+    background: #38434f;
+    color: #ffffff;
+  }
+
+  .affinity-bulk-cancel:hover {
+    background: #48484a;
+  }
+
+  .affinity-bulk-sync {
+    background: #70b5f9;
+    color: #1d2226;
+  }
+
+  .affinity-bulk-sync:hover:not(:disabled) {
+    background: #378fe9;
+  }
+
+  .affinity-bulk-sync:disabled {
+    background: #48484a;
     color: #666;
   }
 }

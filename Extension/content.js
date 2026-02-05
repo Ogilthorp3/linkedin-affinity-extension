@@ -1367,9 +1367,347 @@ function _isConversationItem(element) {
   }
 
   /**
+   * Extract meeting dates/times from messages and generate calendar link
+   * Returns { detected: boolean, title: string, calendarUrl: string }
+   */
+  function detectMeetingFromMessages(messages, contactName) {
+    const result = {
+      detected: false,
+      title: '',
+      calendarUrl: '',
+      dateText: ''
+    };
+
+    if (!messages || messages.length === 0) return result;
+
+    // Common meeting phrases
+    const meetingPhrases = [
+      /(?:let'?s?\s+)?(?:meet|catch up|chat|call|connect|sync|have a call)(?:\s+(?:on|at|next))?/i,
+      /(?:schedule|book|set up)\s+(?:a\s+)?(?:call|meeting|chat)/i,
+      /(?:available|free)\s+(?:on|at|for)/i
+    ];
+
+    // Date patterns
+    const datePatterns = [
+      /(?:(?:this|next)\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
+      /(?:(?:next\s+)?(?:week|month))/i,
+      /(?:tomorrow|today)/i,
+      /(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?/i,
+      /\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)/i
+    ];
+
+    // Time patterns
+    const timePatterns = [
+      /\d{1,2}(?::\d{2})?\s*(?:am|pm)/i,
+      /\d{1,2}(?::\d{2})?\s*(?:o'clock)/i
+    ];
+
+    const allText = messages.map(m => m.content || '').join(' ').toLowerCase();
+
+    // Check if this looks like a meeting discussion
+    const hasMeetingPhrase = meetingPhrases.some(p => p.test(allText));
+    const hasDate = datePatterns.some(p => p.test(allText));
+
+    if (hasMeetingPhrase || hasDate) {
+      result.detected = true;
+
+      // Try to extract date
+      for (const pattern of datePatterns) {
+        const match = allText.match(pattern);
+        if (match) {
+          result.dateText = match[0];
+          break;
+        }
+      }
+
+      // Generate Google Calendar URL
+      const title = encodeURIComponent(`Meeting with ${contactName}`);
+      const details = encodeURIComponent(`LinkedIn conversation sync`);
+
+      // Default to 30-minute meeting
+      const now = new Date();
+      now.setDate(now.getDate() + 1); // Default to tomorrow
+      now.setHours(10, 0, 0, 0); // Default to 10 AM
+      const startDate = now.toISOString().replace(/-|:|\.\d\d\d/g, '');
+      const endDate = new Date(now.getTime() + 30 * 60 * 1000).toISOString().replace(/-|:|\.\d\d\d/g, '');
+
+      result.title = `Meeting with ${contactName}`;
+      result.calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&dates=${startDate}/${endDate}`;
+    }
+
+    return result;
+  }
+
+  /**
+   * Suggest tags based on message content and sender info
+   * Returns an array of { tag: string, reason: string, confidence: 'high' | 'medium' | 'low' }
+   */
+  function suggestTagsFromContent(messages, sender) {
+    const suggestions = [];
+    const messageText = messages?.map(m => m.content || '').join(' ').toLowerCase() || '';
+    const headline = (sender?.headline || '').toLowerCase();
+    const title = (sender?.currentJobTitle || sender?.title || '').toLowerCase();
+
+    // Founder detection
+    const founderKeywords = ['founder', 'co-founder', 'cofounder', 'ceo', 'building', 'my startup', 'raised', 'series a', 'series b', 'seed round', 'pre-seed'];
+    const founderMatches = founderKeywords.filter(kw => messageText.includes(kw) || headline.includes(kw) || title.includes(kw));
+    if (founderMatches.length > 0) {
+      const confidence = founderMatches.length >= 2 || headline.includes('founder') || title.includes('founder') ? 'high' : 'medium';
+      suggestions.push({
+        tag: 'Founder',
+        reason: `Detected: ${founderMatches.slice(0, 2).join(', ')}`,
+        confidence
+      });
+    }
+
+    // Co-investor/VC detection
+    const investorKeywords = ['fund', 'portfolio', 'investing', 'investment', 'vc', 'venture', 'partner at', 'gp', 'general partner', 'managing partner', 'principal'];
+    const investorMatches = investorKeywords.filter(kw => messageText.includes(kw) || headline.includes(kw) || title.includes(kw));
+    if (investorMatches.length > 0 && !suggestions.find(s => s.tag === 'Founder')) {
+      const confidence = investorMatches.length >= 2 || headline.includes('partner') || headline.includes('venture') ? 'high' : 'medium';
+      suggestions.push({
+        tag: 'Co-investor',
+        reason: `Detected: ${investorMatches.slice(0, 2).join(', ')}`,
+        confidence
+      });
+    }
+
+    // LP detection
+    const lpKeywords = ['limited partner', 'lp', 'family office', 'endowment', 'allocation', 'allocator', 'wealth management', 'family capital'];
+    const lpMatches = lpKeywords.filter(kw => messageText.includes(kw) || headline.includes(kw));
+    if (lpMatches.length > 0) {
+      suggestions.push({
+        tag: 'LP',
+        reason: `Detected: ${lpMatches.slice(0, 2).join(', ')}`,
+        confidence: lpMatches.length >= 2 ? 'high' : 'medium'
+      });
+    }
+
+    // Deal Source detection
+    const dealSourceKeywords = ['intro', 'introduction', 'referral', 'connect you', 'know someone', 'deal flow', 'sourcing', 'recommend'];
+    const dealSourceMatches = dealSourceKeywords.filter(kw => messageText.includes(kw));
+    if (dealSourceMatches.length > 0) {
+      suggestions.push({
+        tag: 'Deal Source',
+        reason: `Detected: ${dealSourceMatches.slice(0, 2).join(', ')}`,
+        confidence: dealSourceMatches.length >= 2 ? 'high' : 'medium'
+      });
+    }
+
+    // Portfolio detection (company in portfolio)
+    const portfolioKeywords = ['portfolio company', 'backed by', 'investor in', 'our investment'];
+    const portfolioMatches = portfolioKeywords.filter(kw => messageText.includes(kw));
+    if (portfolioMatches.length > 0) {
+      suggestions.push({
+        tag: 'Portfolio',
+        reason: `Detected: ${portfolioMatches.slice(0, 2).join(', ')}`,
+        confidence: portfolioMatches.length >= 2 ? 'high' : 'medium'
+      });
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * Calculate conversation statistics from messages
+   */
+  function calculateConversationStats(messages, senderName) {
+    const stats = {
+      totalMessages: 0,
+      incomingMessages: 0,
+      outgoingMessages: 0,
+      firstMessageDate: null,
+      lastMessageDate: null,
+      conversationDuration: null,
+      engagementScore: null,
+      engagementLabel: null,
+      daysSinceLastMessage: null
+    };
+
+    if (!messages || messages.length === 0) {
+      return stats;
+    }
+
+    stats.totalMessages = messages.length;
+
+    // Count incoming vs outgoing
+    messages.forEach(msg => {
+      if (msg.isIncoming) {
+        stats.incomingMessages++;
+      } else {
+        stats.outgoingMessages++;
+      }
+    });
+
+    // Find first and last message dates
+    const dates = messages
+      .map(msg => msg.date)
+      .filter(d => d)
+      .sort();
+
+    if (dates.length > 0) {
+      stats.firstMessageDate = dates[0];
+      stats.lastMessageDate = dates[dates.length - 1];
+
+      // Calculate duration
+      if (dates.length > 1 && stats.firstMessageDate !== stats.lastMessageDate) {
+        const first = new Date(stats.firstMessageDate);
+        const last = new Date(stats.lastMessageDate);
+        const diffDays = Math.ceil((last - first) / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          stats.conversationDuration = diffDays === 1 ? '1 day' : `${diffDays} days`;
+        }
+      }
+
+      // Calculate days since last message
+      const lastDate = new Date(stats.lastMessageDate);
+      const today = new Date();
+      stats.daysSinceLastMessage = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
+    }
+
+    // Calculate engagement score (0-100)
+    let engagementScore = 0;
+
+    // Factor 1: Response balance (0-40 points)
+    // Perfect balance (50/50) = 40 points, one-sided = 0 points
+    if (stats.totalMessages >= 2) {
+      const inRatio = stats.incomingMessages / stats.totalMessages;
+      const balance = 1 - Math.abs(0.5 - inRatio) * 2; // 0 to 1
+      engagementScore += Math.round(balance * 40);
+    }
+
+    // Factor 2: Conversation recency (0-30 points)
+    // Within 7 days = 30, 14 days = 20, 30 days = 10, older = 5
+    if (stats.daysSinceLastMessage !== null) {
+      if (stats.daysSinceLastMessage <= 7) {
+        engagementScore += 30;
+      } else if (stats.daysSinceLastMessage <= 14) {
+        engagementScore += 20;
+      } else if (stats.daysSinceLastMessage <= 30) {
+        engagementScore += 10;
+      } else {
+        engagementScore += 5;
+      }
+    }
+
+    // Factor 3: Message volume (0-30 points)
+    // 10+ messages = 30, 5-9 = 20, 2-4 = 10, 1 = 5
+    if (stats.totalMessages >= 10) {
+      engagementScore += 30;
+    } else if (stats.totalMessages >= 5) {
+      engagementScore += 20;
+    } else if (stats.totalMessages >= 2) {
+      engagementScore += 10;
+    } else {
+      engagementScore += 5;
+    }
+
+    stats.engagementScore = engagementScore;
+
+    // Assign label based on score
+    if (engagementScore >= 80) {
+      stats.engagementLabel = 'Hot';
+    } else if (engagementScore >= 60) {
+      stats.engagementLabel = 'Warm';
+    } else if (engagementScore >= 40) {
+      stats.engagementLabel = 'Active';
+    } else {
+      stats.engagementLabel = 'Cold';
+    }
+
+    return stats;
+  }
+
+  /**
+   * Create conversation stats section for the modal
+   */
+  function createConversationStatsSection(messages, senderName) {
+    const stats = calculateConversationStats(messages, senderName);
+    const section = document.createElement('div');
+    section.className = 'affinity-stats-section';
+
+    if (stats.totalMessages === 0) {
+      section.innerHTML = `
+        <div class="affinity-stats-empty">No messages to sync</div>
+      `;
+      return section;
+    }
+
+    // Format date for display (YYYY-MM-DD to "Jan 15")
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      const date = new Date(dateStr + 'T12:00:00');
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    let statsHTML = `<div class="affinity-stats-grid">`;
+
+    // Message count
+    statsHTML += `
+      <div class="affinity-stat-item">
+        <span class="affinity-stat-value">${stats.totalMessages}</span>
+        <span class="affinity-stat-label">messages</span>
+      </div>
+    `;
+
+    // Incoming/Outgoing breakdown
+    statsHTML += `
+      <div class="affinity-stat-item">
+        <span class="affinity-stat-value">${stats.incomingMessages}/${stats.outgoingMessages}</span>
+        <span class="affinity-stat-label">in/out</span>
+      </div>
+    `;
+
+    // Engagement score
+    if (stats.engagementScore !== null) {
+      const scoreClass = stats.engagementLabel.toLowerCase();
+      statsHTML += `
+        <div class="affinity-stat-item affinity-engagement-${scoreClass}">
+          <span class="affinity-stat-value">${stats.engagementLabel}</span>
+          <span class="affinity-stat-label">${stats.engagementScore}/100</span>
+        </div>
+      `;
+    }
+
+    // Date range or single date
+    if (stats.firstMessageDate && stats.lastMessageDate) {
+      if (stats.firstMessageDate === stats.lastMessageDate) {
+        statsHTML += `
+          <div class="affinity-stat-item">
+            <span class="affinity-stat-value">${formatDate(stats.firstMessageDate)}</span>
+            <span class="affinity-stat-label">date</span>
+          </div>
+        `;
+      } else {
+        statsHTML += `
+          <div class="affinity-stat-item">
+            <span class="affinity-stat-value">${formatDate(stats.firstMessageDate)}</span>
+            <span class="affinity-stat-label">first msg</span>
+          </div>
+        `;
+        // Show days since last message instead of duration for better context
+        if (stats.daysSinceLastMessage !== null && stats.daysSinceLastMessage > 0) {
+          const recencyText = stats.daysSinceLastMessage === 1 ? '1d ago' : `${stats.daysSinceLastMessage}d ago`;
+          statsHTML += `
+            <div class="affinity-stat-item">
+              <span class="affinity-stat-value">${recencyText}</span>
+              <span class="affinity-stat-label">last msg</span>
+            </div>
+          `;
+        }
+      }
+    }
+
+    statsHTML += `</div>`;
+    section.innerHTML = statsHTML;
+
+    return section;
+  }
+
+  /**
    * Create a preview card showing the contact data that will be synced
    */
-  function createPreviewCard(sender, detectedInfo = null) {
+  function createPreviewCard(sender, detectedInfo = null, messages = null) {
     const card = document.createElement('div');
     card.className = 'affinity-preview-card';
 
@@ -1426,6 +1764,18 @@ function _isConversationItem(element) {
       if (detectedInfo.meetingLinks && detectedInfo.meetingLinks.length > 0) {
         const linkDomain = new URL(detectedInfo.meetingLinks[0]).hostname.replace('www.', '');
         cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📅</span><span>Meeting link detected (${escapeHtml(linkDomain)})</span></div>`;
+      }
+    }
+
+    // Check for meeting discussions and add calendar button
+    if (messages && messages.length > 0) {
+      const meetingInfo = detectMeetingFromMessages(messages, name);
+      if (meetingInfo.detected) {
+        cardHTML += `<div class="affinity-calendar-section">`;
+        cardHTML += `<span class="affinity-calendar-icon">📆</span>`;
+        cardHTML += `<span class="affinity-calendar-text">Meeting discussion detected${meetingInfo.dateText ? ` (${escapeHtml(meetingInfo.dateText)})` : ''}</span>`;
+        cardHTML += `<a href="${meetingInfo.calendarUrl}" target="_blank" class="affinity-calendar-btn" title="Add to Google Calendar">+ Calendar</a>`;
+        cardHTML += `</div>`;
       }
     }
 
@@ -1500,36 +1850,121 @@ function _isConversationItem(element) {
             ${email ? `<div class="affinity-contact-email">${escapeHtml(email)}</div>` : ''}
             ${org ? `<div class="affinity-contact-org">${escapeHtml(org)}</div>` : ''}
           </div>
-          <button class="affinity-contact-select" data-person-id="${person.id}">Select</button>
+          <div class="affinity-contact-actions">
+            <button class="affinity-contact-preview-btn" data-person-id="${person.id}" title="Show Affinity data">👁</button>
+            <button class="affinity-contact-select" data-person-id="${person.id}">Select</button>
+          </div>
+          <div class="affinity-contact-preview-data" style="display:none;">
+            <div class="affinity-preview-loading">Loading...</div>
+          </div>
         `;
+
+        // Preview toggle
+        const previewBtn = item.querySelector('.affinity-contact-preview-btn');
+        previewBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const previewData = item.querySelector('.affinity-contact-preview-data');
+          const isVisible = previewData.style.display !== 'none';
+
+          if (isVisible) {
+            previewData.style.display = 'none';
+            previewBtn.textContent = '👁';
+          } else {
+            previewData.style.display = 'block';
+            previewBtn.textContent = '✕';
+
+            // Fetch preview if not already loaded
+            if (previewData.querySelector('.affinity-preview-loading')) {
+              try {
+                const response = await sendMessage({
+                  action: 'getPersonPreview',
+                  personId: person.id
+                });
+
+                if (response.success && response.preview) {
+                  const p = response.preview;
+                  let html = '<div class="affinity-preview-info">';
+
+                  if (p.noteCount > 0) {
+                    html += `<div class="affinity-preview-stat">📝 ${p.noteCount} note${p.noteCount > 1 ? 's' : ''}</div>`;
+                    if (p.lastNote) {
+                      const noteDate = new Date(p.lastNote.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                      html += `<div class="affinity-preview-note">"${escapeHtml(p.lastNote.preview)}" <span class="affinity-preview-date">${noteDate}</span></div>`;
+                    }
+                  }
+
+                  if (p.lists && p.lists.length > 0) {
+                    html += `<div class="affinity-preview-stat">📋 On ${p.lists.length} list${p.lists.length > 1 ? 's' : ''}: ${escapeHtml(p.lists.slice(0, 3).join(', '))}${p.lists.length > 3 ? '...' : ''}</div>`;
+                  }
+
+                  if (p.lastInteraction) {
+                    const interDate = new Date(p.lastInteraction).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    html += `<div class="affinity-preview-stat">🔄 Last interaction: ${interDate}</div>`;
+                  }
+
+                  if (html === '<div class="affinity-preview-info">') {
+                    html += '<div class="affinity-preview-empty">No additional data</div>';
+                  }
+
+                  html += '</div>';
+                  previewData.innerHTML = html;
+                } else {
+                  previewData.innerHTML = '<div class="affinity-preview-empty">Could not load preview</div>';
+                }
+              } catch (err) {
+                previewData.innerHTML = '<div class="affinity-preview-empty">Error loading preview</div>';
+              }
+            }
+          }
+        });
 
         item.querySelector('.affinity-contact-select').addEventListener('click', () => {
           const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
           const tags = getSelectedTags();
-          handleContactSelection(person.id, conversationData, quickNote, tags);
+          const listId = getSelectedListId();
+          handleContactSelection(person.id, conversationData, quickNote, tags, listId);
         });
 
         list.appendChild(item);
       });
     } else {
       // No matches - show preview card of what will be created
-      const previewCard = createPreviewCard(sender, detectedInfo);
+      const previewCard = createPreviewCard(sender, detectedInfo, conversationData.messages);
       list.appendChild(previewCard);
     }
+
+    // Get smart tag suggestions
+    const tagSuggestions = suggestTagsFromContent(conversationData.messages, sender);
+    const suggestionMap = new Map(tagSuggestions.map(s => [s.tag, s]));
 
     // Tags section for VC workflow
     const tagsSection = document.createElement('div');
     tagsSection.className = 'affinity-tags-section';
-    tagsSection.innerHTML = `
-      <label class="affinity-tags-label">Tag Contact</label>
-      <div class="affinity-tags-container">
-        <button type="button" class="affinity-tag" data-tag="Founder">🚀 Founder</button>
-        <button type="button" class="affinity-tag" data-tag="Co-investor">💼 Co-investor</button>
-        <button type="button" class="affinity-tag" data-tag="LP">🤝 LP</button>
-        <button type="button" class="affinity-tag" data-tag="Deal Source">🔗 Deal Source</button>
-        <button type="button" class="affinity-tag" data-tag="Portfolio">📋 Portfolio</button>
-      </div>
-    `;
+
+    // Build tags HTML with suggestion indicators
+    const tagConfigs = [
+      { tag: 'Founder', emoji: '🚀' },
+      { tag: 'Co-investor', emoji: '💼' },
+      { tag: 'LP', emoji: '🤝' },
+      { tag: 'Deal Source', emoji: '🔗' },
+      { tag: 'Portfolio', emoji: '📋' }
+    ];
+
+    let tagsHTML = '<label class="affinity-tags-label">Tag Contact';
+    if (tagSuggestions.length > 0) {
+      tagsHTML += ' <span class="affinity-tag-hint">(AI suggestions shown)</span>';
+    }
+    tagsHTML += '</label><div class="affinity-tags-container">';
+
+    tagConfigs.forEach(({ tag, emoji }) => {
+      const suggestion = suggestionMap.get(tag);
+      const suggestionClass = suggestion ? `affinity-suggested affinity-suggested-${suggestion.confidence}` : '';
+      const tooltip = suggestion ? ` title="${suggestion.reason}"` : '';
+      tagsHTML += `<button type="button" class="affinity-tag ${suggestionClass}" data-tag="${tag}"${tooltip}>${emoji} ${tag}</button>`;
+    });
+
+    tagsHTML += '</div>';
+    tagsSection.innerHTML = tagsHTML;
 
     // Add tag selection logic
     tagsSection.querySelectorAll('.affinity-tag').forEach(tag => {
@@ -1538,7 +1973,17 @@ function _isConversationItem(element) {
       });
     });
 
-    // Pre-select previously used tags for this contact
+    // Auto-select high confidence suggestions
+    tagSuggestions.forEach(suggestion => {
+      if (suggestion.confidence === 'high') {
+        const tagBtn = tagsSection.querySelector(`[data-tag="${suggestion.tag}"]`);
+        if (tagBtn) {
+          tagBtn.classList.add('selected');
+        }
+      }
+    });
+
+    // Pre-select previously used tags for this contact (overrides auto-suggestions)
     loadSavedTagsForContact(sender.linkedinUrl || sender.name, tagsSection);
 
     // Quick notes input
@@ -1553,6 +1998,20 @@ function _isConversationItem(element) {
         rows="2"
       ></textarea>
     `;
+
+    // List selector section
+    const listSection = document.createElement('div');
+    listSection.className = 'affinity-list-section';
+    listSection.innerHTML = `
+      <label class="affinity-list-label" for="affinity-list-select">Add to list (optional)</label>
+      <select id="affinity-list-select" class="affinity-list-select">
+        <option value="">-- Select a list --</option>
+        <option value="_loading" disabled>Loading lists...</option>
+      </select>
+    `;
+
+    // Load available lists
+    loadListsDropdown();
 
     // Footer - only show "Create Contact" when no matches exist (to prevent duplicates)
     const footer = document.createElement('div');
@@ -1572,12 +2031,17 @@ function _isConversationItem(element) {
       `;
     }
 
+    // Conversation stats section
+    const statsSection = createConversationStatsSection(conversationData.messages, senderName);
+
     // Assemble modal
     modal.appendChild(header);
     modal.appendChild(subtitle);
     modal.appendChild(list);
+    modal.appendChild(statsSection);
     modal.appendChild(tagsSection);
     modal.appendChild(notesSection);
+    modal.appendChild(listSection);
     modal.appendChild(footer);
     overlay.appendChild(modal);
 
@@ -1591,7 +2055,8 @@ function _isConversationItem(element) {
       createNewBtn.addEventListener('click', () => {
         const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
         const tags = getSelectedTags();
-        handleCreateNewContact(conversationData, quickNote, tags);
+        const listId = getSelectedListId();
+        handleCreateNewContact(conversationData, quickNote, tags, listId);
       });
     }
 
@@ -1651,6 +2116,44 @@ function _isConversationItem(element) {
   }
 
   /**
+   * Get selected list ID from dropdown
+   */
+  function getSelectedListId() {
+    const select = document.getElementById('affinity-list-select');
+    return select?.value || null;
+  }
+
+  /**
+   * Load available lists into the dropdown
+   */
+  async function loadListsDropdown() {
+    try {
+      const response = await sendMessage({ action: 'getLists' });
+      const select = document.getElementById('affinity-list-select');
+
+      if (!select) return;
+
+      // Clear loading option
+      select.innerHTML = '<option value="">-- Select a list --</option>';
+
+      if (response.success && response.lists) {
+        response.lists.forEach(list => {
+          const option = document.createElement('option');
+          option.value = list.id;
+          option.textContent = list.name;
+          select.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error loading lists:', error);
+      const select = document.getElementById('affinity-list-select');
+      if (select) {
+        select.innerHTML = '<option value="">-- Could not load lists --</option>';
+      }
+    }
+  }
+
+  /**
    * Generate a storage key for a contact's tags
    */
   function getContactTagKey(contactIdentifier) {
@@ -1677,6 +2180,58 @@ function _isConversationItem(element) {
     } catch (error) {
       console.error('[LinkedIn to Affinity] Error saving tags:', error);
     }
+  }
+
+  /**
+   * Save last sync time for a contact
+   */
+  async function saveSyncTimeForContact(contactIdentifier, personId = null) {
+    if (!contactIdentifier) return;
+
+    const key = `sync_time_${contactIdentifier.toLowerCase().replace(/\/+$/, '')}`;
+    try {
+      const data = {};
+      data[key] = {
+        timestamp: Date.now(),
+        personId: personId
+      };
+      await browserAPI.storage.local.set(data);
+      console.log('[LinkedIn to Affinity] Saved sync time for:', contactIdentifier);
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error saving sync time:', error);
+    }
+  }
+
+  /**
+   * Get last sync time for a contact
+   */
+  async function getSyncTimeForContact(contactIdentifier) {
+    if (!contactIdentifier) return null;
+
+    const key = `sync_time_${contactIdentifier.toLowerCase().replace(/\/+$/, '')}`;
+    try {
+      const result = await browserAPI.storage.local.get([key]);
+      return result[key] || null;
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error getting sync time:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Format relative time (e.g., "2d ago", "3h ago")
+   */
+  function formatRelativeTime(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'just now';
   }
 
   /**
@@ -2035,7 +2590,7 @@ function _isConversationItem(element) {
   /**
    * Handle contact selection from modal
    */
-  async function handleContactSelection(personId, conversationData, quickNote = '', tags = []) {
+  async function handleContactSelection(personId, conversationData, quickNote = '', tags = [], listId = null) {
     const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
@@ -2059,20 +2614,30 @@ function _isConversationItem(element) {
       });
 
       if (response.success) {
+        // Add to list if selected
+        if (listId) {
+          try {
+            await sendMessage({ action: 'addPersonToList', personId, listId });
+          } catch (listError) {
+            console.log('[LinkedIn to Affinity] Could not add to list:', listError);
+          }
+        }
         // Increment stats counter
         incrementSyncCount();
-        // Save tags for this contact for future use
+        // Save tags and sync time for this contact
         const contactId = conversationData.sender?.linkedinUrl || conversationData.sender?.name;
         if (tags && tags.length > 0) {
           saveTagsForContact(contactId, tags);
         }
+        saveSyncTimeForContact(contactId, personId);
         // Get the subdomain for the View in Affinity link
         const subdomain = await getAffinitySubdomain();
         // Show success feedback on modal
         const msgCount = response.newMessageCount;
-        const successMsg = msgCount !== undefined
+        let successMsg = msgCount !== undefined
           ? (msgCount > 0 ? `Sent ${msgCount} new message(s)!` : 'Contact info sent!')
           : 'Conversation sent successfully!';
+        if (listId) successMsg += ' Added to list.';
 
         if (modalOverlay) {
           showModalFeedback(modalOverlay, 'success', successMsg, null, { personId, subdomain });
@@ -2121,7 +2686,7 @@ function _isConversationItem(element) {
   /**
    * Handle creating a new contact from modal
    */
-  async function handleCreateNewContact(conversationData, quickNote = '', tags = []) {
+  async function handleCreateNewContact(conversationData, quickNote = '', tags = [], listId = null) {
     const modalOverlay = document.getElementById(MODAL_ID);
     const button = activeButton;
 
@@ -2147,19 +2712,30 @@ function _isConversationItem(element) {
       });
 
       if (response.success) {
+        // Add to list if selected
+        if (listId && response.personId) {
+          try {
+            await sendMessage({ action: 'addPersonToList', personId: response.personId, listId });
+          } catch (listError) {
+            console.log('[LinkedIn to Affinity] Could not add to list:', listError);
+          }
+        }
         // Increment stats counter
         incrementSyncCount();
-        // Save tags for this contact for future use
+        // Save tags and sync time for this contact
         const contactId = conversationData.sender?.linkedinUrl || conversationData.sender?.name;
         if (tags && tags.length > 0) {
           saveTagsForContact(contactId, tags);
         }
+        saveSyncTimeForContact(contactId, response.personId);
         // Get the subdomain for the View in Affinity link
         const subdomain = await getAffinitySubdomain();
         // Show success feedback on modal
         const name = response.personName || conversationData.sender?.name || 'contact';
+        let successMsg = `Created ${name} and sent conversation!`;
+        if (listId) successMsg += ' Added to list.';
         if (modalOverlay) {
-          showModalFeedback(modalOverlay, 'success', `Created ${name} and sent conversation!`, null, { personId: response.personId, subdomain });
+          showModalFeedback(modalOverlay, 'success', successMsg, null, { personId: response.personId, subdomain });
         } else if (button) {
           button.classList.add('affinity-success');
           const span = button.querySelector('span');
@@ -2208,6 +2784,9 @@ function _isConversationItem(element) {
     `;
     button.title = 'Send this conversation to Affinity CRM';
 
+    // Check if this contact was previously synced
+    checkAndUpdateButtonSyncStatus(button, conversationItem);
+
     button.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -2215,6 +2794,33 @@ function _isConversationItem(element) {
     });
 
     return button;
+  }
+
+  /**
+   * Check sync status and update button appearance
+   */
+  async function checkAndUpdateButtonSyncStatus(button, conversationItem) {
+    try {
+      // Extract LinkedIn URL from conversation item
+      const profileLink = conversationItem.querySelector('a[href*="/in/"]');
+      const linkedinUrl = profileLink?.href;
+
+      if (!linkedinUrl) return;
+
+      const syncInfo = await getSyncTimeForContact(linkedinUrl);
+      if (syncInfo && syncInfo.timestamp) {
+        const relativeTime = formatRelativeTime(syncInfo.timestamp);
+        const span = button.querySelector('span');
+        if (span) {
+          span.textContent = `Synced ${relativeTime}`;
+        }
+        button.classList.add('affinity-synced');
+        button.title = `Last synced ${relativeTime}. Click to sync again.`;
+      }
+    } catch (error) {
+      // Silently fail - just show default button
+      console.log('[LinkedIn to Affinity] Could not check sync status:', error);
+    }
   }
 
   /**
@@ -2712,6 +3318,229 @@ function _isConversationItem(element) {
     console.log('[LinkedIn to Affinity] Watching for conversation changes...');
   }
 
+  // ============================================================================
+  // Bulk Sync Mode
+  // ============================================================================
+
+  let bulkModeActive = false;
+  let selectedConversations = new Set();
+
+  /**
+   * Create the bulk sync toggle button
+   */
+  function createBulkSyncButton() {
+    // Check if button already exists
+    if (document.getElementById('affinity-bulk-toggle')) return;
+
+    // Find the conversation list container
+    const listContainer = document.querySelector(
+      '.msg-conversations-container__conversations-list, ' +
+      '.msg-overlay-list-bubble__content, ' +
+      '[class*="conversation-list"]'
+    )?.parentElement;
+
+    if (!listContainer) return;
+
+    const toggle = document.createElement('button');
+    toggle.id = 'affinity-bulk-toggle';
+    toggle.className = 'affinity-bulk-toggle';
+    toggle.innerHTML = '☰ Bulk';
+    toggle.title = 'Toggle bulk sync mode';
+
+    toggle.addEventListener('click', () => {
+      toggleBulkMode();
+    });
+
+    // Insert at the top of the container
+    listContainer.insertBefore(toggle, listContainer.firstChild);
+    console.log('[LinkedIn to Affinity] Bulk sync toggle added');
+  }
+
+  /**
+   * Toggle bulk sync mode on/off
+   */
+  function toggleBulkMode() {
+    bulkModeActive = !bulkModeActive;
+    selectedConversations.clear();
+
+    const toggle = document.getElementById('affinity-bulk-toggle');
+    if (toggle) {
+      toggle.classList.toggle('active', bulkModeActive);
+      toggle.innerHTML = bulkModeActive ? '✓ Bulk Mode' : '☰ Bulk';
+    }
+
+    // Add/remove checkboxes from conversation items
+    const items = document.querySelectorAll(
+      '.msg-conversation-listitem, ' +
+      '.msg-conversation-card, ' +
+      '.msg-conversations-container__convo-item'
+    );
+
+    items.forEach(item => {
+      const existingCheckbox = item.querySelector('.affinity-bulk-checkbox');
+
+      if (bulkModeActive && !existingCheckbox) {
+        const checkbox = document.createElement('div');
+        checkbox.className = 'affinity-bulk-checkbox';
+        checkbox.innerHTML = '';
+        checkbox.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isSelected = checkbox.classList.toggle('selected');
+          if (isSelected) {
+            selectedConversations.add(item);
+            checkbox.innerHTML = '✓';
+          } else {
+            selectedConversations.delete(item);
+            checkbox.innerHTML = '';
+          }
+          updateBulkToolbar();
+        });
+        item.style.position = 'relative';
+        item.insertBefore(checkbox, item.firstChild);
+      } else if (!bulkModeActive && existingCheckbox) {
+        existingCheckbox.remove();
+      }
+    });
+
+    // Show/hide bulk toolbar
+    if (bulkModeActive) {
+      showBulkToolbar();
+    } else {
+      hideBulkToolbar();
+    }
+  }
+
+  /**
+   * Show the bulk sync toolbar at the bottom
+   */
+  function showBulkToolbar() {
+    if (document.getElementById('affinity-bulk-toolbar')) return;
+
+    const toolbar = document.createElement('div');
+    toolbar.id = 'affinity-bulk-toolbar';
+    toolbar.className = 'affinity-bulk-toolbar';
+    toolbar.innerHTML = `
+      <span class="affinity-bulk-count">0 selected</span>
+      <div class="affinity-bulk-actions">
+        <button class="affinity-bulk-cancel">Cancel</button>
+        <button class="affinity-bulk-sync" disabled>Sync Selected</button>
+      </div>
+    `;
+
+    toolbar.querySelector('.affinity-bulk-cancel').addEventListener('click', () => {
+      toggleBulkMode();
+    });
+
+    toolbar.querySelector('.affinity-bulk-sync').addEventListener('click', async () => {
+      await syncSelectedConversations();
+    });
+
+    document.body.appendChild(toolbar);
+  }
+
+  /**
+   * Hide the bulk sync toolbar
+   */
+  function hideBulkToolbar() {
+    const toolbar = document.getElementById('affinity-bulk-toolbar');
+    if (toolbar) toolbar.remove();
+  }
+
+  /**
+   * Update the bulk toolbar count
+   */
+  function updateBulkToolbar() {
+    const toolbar = document.getElementById('affinity-bulk-toolbar');
+    if (!toolbar) return;
+
+    const count = selectedConversations.size;
+    toolbar.querySelector('.affinity-bulk-count').textContent = `${count} selected`;
+    toolbar.querySelector('.affinity-bulk-sync').disabled = count === 0;
+  }
+
+  /**
+   * Sync all selected conversations
+   */
+  async function syncSelectedConversations() {
+    if (selectedConversations.size === 0) return;
+
+    const toolbar = document.getElementById('affinity-bulk-toolbar');
+    const syncBtn = toolbar?.querySelector('.affinity-bulk-sync');
+    if (syncBtn) {
+      syncBtn.disabled = true;
+      syncBtn.textContent = 'Syncing...';
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+    const total = selectedConversations.size;
+
+    for (const item of selectedConversations) {
+      try {
+        // Click on the conversation to load it
+        item.click();
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for load
+
+        // Extract sender info
+        const senderInfo = extractSenderFromConversationItem(item);
+        if (senderInfo?.name) {
+          const payload = {
+            sender: senderInfo,
+            messages: [], // Empty for bulk mode (just creates/links contact)
+            conversationUrl: window.location.href,
+            capturedAt: new Date().toISOString()
+          };
+
+          const response = await sendMessage({
+            action: 'sendToAffinity',
+            data: payload
+          });
+
+          if (response.needsSelection && response.matches?.length > 0) {
+            // Auto-select first match for bulk mode
+            await sendMessage({
+              action: 'sendToAffinityWithPerson',
+              personId: response.matches[0].id,
+              conversationData: response.conversationData
+            });
+            successCount++;
+          } else if (response.needsSelection) {
+            // No matches - create new
+            await sendMessage({
+              action: 'createPersonAndSend',
+              senderData: senderInfo,
+              conversationData: response.conversationData
+            });
+            successCount++;
+          }
+        }
+
+        // Mark as synced visually
+        const checkbox = item.querySelector('.affinity-bulk-checkbox');
+        if (checkbox) {
+          checkbox.classList.add('synced');
+          checkbox.innerHTML = '✓';
+        }
+
+        // Update progress
+        if (syncBtn) {
+          syncBtn.textContent = `Syncing ${successCount + errorCount}/${total}...`;
+        }
+      } catch (error) {
+        console.error('[LinkedIn to Affinity] Bulk sync error:', error);
+        errorCount++;
+      }
+    }
+
+    // Show result
+    if (syncBtn) {
+      syncBtn.textContent = `Done! ${successCount} synced`;
+      setTimeout(() => {
+        toggleBulkMode();
+      }, 2000);
+    }
+  }
+
   /**
    * Initialize the extension
    */
@@ -2723,8 +3552,12 @@ function _isConversationItem(element) {
     // Wait for page to be ready
     if (document.readyState === 'complete') {
       watchForConversationChanges();
+      setTimeout(createBulkSyncButton, 2000); // Add bulk sync button after page loads
     } else {
-      window.addEventListener('load', watchForConversationChanges);
+      window.addEventListener('load', () => {
+        watchForConversationChanges();
+        setTimeout(createBulkSyncButton, 2000);
+      });
     }
   }
 

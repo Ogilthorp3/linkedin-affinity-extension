@@ -45,6 +45,12 @@
       margin-top: 2px;
     }
 
+    .header .copyright {
+      font-size: 10px;
+      color: #aeaeb2;
+      margin-top: 4px;
+    }
+
     .form-group {
       margin-bottom: 16px;
     }
@@ -245,6 +251,35 @@
       align-items: center;
       gap: 4px;
       margin-top: 8px;
+    }
+
+    .notification-toggle {
+      margin-top: 16px;
+      padding: 12px;
+      background: #f5f5f7;
+      border-radius: 8px;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .toggle-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .toggle-hint {
+      font-size: 11px;
+      color: #86868b;
+      margin-top: 4px;
+      margin-left: 26px;
     }
 
     kbd {
@@ -510,6 +545,34 @@
       font-size: 13px;
     }
 
+    .export-section {
+      text-align: center;
+      border-bottom: none !important;
+    }
+
+    .export-btn {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #1d1d1f;
+      background: linear-gradient(135deg, #f5f5f7 0%, #e8e8ed 100%);
+      border: 1px solid #d2d2d7;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .export-btn:hover {
+      background: linear-gradient(135deg, #e8e8ed 0%, #d2d2d7 100%);
+    }
+
+    .export-btn.success {
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      border-color: #34c759;
+      color: #155724;
+    }
+
     /* Dark Mode Support */
     @media (prefers-color-scheme: dark) {
       body {
@@ -523,6 +586,10 @@
 
       .header p {
         color: #98989f;
+      }
+
+      .header .copyright {
+        color: #636366;
       }
 
       label {
@@ -617,6 +684,14 @@
         border-color: #38383a;
       }
 
+      .notification-toggle {
+        background: #2c2c2e;
+      }
+
+      .toggle-hint {
+        color: #98989f;
+      }
+
       /* Tab Navigation - Dark */
       .tab-bar {
         background: #2c2c2e;
@@ -709,6 +784,22 @@
         background: #3c1f1f;
         color: #ff453a;
       }
+
+      .export-btn {
+        color: #f5f5f7;
+        background: linear-gradient(135deg, #2c2c2e 0%, #3a3a3c 100%);
+        border-color: #48484a;
+      }
+
+      .export-btn:hover {
+        background: linear-gradient(135deg, #3a3a3c 0%, #48484a 100%);
+      }
+
+      .export-btn.success {
+        background: linear-gradient(135deg, #1c3829 0%, #234d35 100%);
+        border-color: #30d158;
+        color: #30d158;
+      }
     }
   </style>
 </head>
@@ -729,6 +820,7 @@
     <div>
       <h1>LinkedIn to Affinity</h1>
       <p>Send conversations to your CRM</p>
+      <p class="copyright">Bertrand Nepveu © Triptyq Capital</p>
     </div>
   </div>
 
@@ -761,6 +853,14 @@
   <div class="stats-badge" id="statsBadge" style="display: none;">
     <span class="stats-icon">✨</span>
     <span id="statsText">0 contacts synced</span>
+  </div>
+
+  <div class="notification-toggle">
+    <label class="toggle-label">
+      <input type="checkbox" id="notificationsEnabled" />
+      <span class="toggle-text">Follow-up notifications</span>
+    </label>
+    <p class="toggle-hint">Get reminded about overdue follow-ups</p>
   </div>
 
   <div class="help-text">
@@ -827,6 +927,13 @@
         <div id="followup-empty" class="dashboard-empty" style="display: none;">
           No follow-ups detected
         </div>
+      </div>
+
+      <!-- Export Summary -->
+      <div class="dashboard-section export-section">
+        <button class="export-btn" id="exportSummaryBtn">
+          📋 Export Weekly Summary
+        </button>
       </div>
     </div>
 

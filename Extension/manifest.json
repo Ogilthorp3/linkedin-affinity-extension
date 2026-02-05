@@ -5,7 +5,9 @@
   "description": "Capture LinkedIn conversations and send them to Affinity CRM",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "notifications",
+    "alarms"
   ],
   "host_permissions": [
     "https://www.linkedin.com/*",

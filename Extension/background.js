@@ -489,10 +489,39 @@ async function createField(name, entityType, valueType) {
 let fieldsCache = null;
 
 /**
+ * Cache for current user info
+ */
+let currentUserCache = null;
+
+/**
+ * Get current user info (cached)
+ */
+async function getCurrentUser() {
+  if (currentUserCache) return currentUserCache;
+
+  try {
+    const result = await affinityRequest('/whoami');
+    if (result && result.grant) {
+      currentUserCache = {
+        firstName: result.grant.first_name,
+        lastName: result.grant.last_name,
+        email: result.grant.email
+      };
+      console.log('[LinkedIn to Affinity] Cached current user:', currentUserCache.firstName);
+    }
+    return currentUserCache;
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error getting current user:', error);
+    return null;
+  }
+}
+
+/**
  * Reset caches (for testing)
  */
 function resetCaches() {
   fieldsCache = null;
+  currentUserCache = null;
 }
 
 /**
@@ -602,6 +631,18 @@ async function findPersonFields() {
        f.name?.toLowerCase() === 'tags') &&
       (f.value_type === 2 || f.value_type === 6)
     ),
+    // Profile Photo URL - Text field (value_type 6)
+    profilePhoto: personFields.find(f =>
+      (f.name?.toLowerCase() === 'profile photo' ||
+       f.name?.toLowerCase() === 'profile photo url' ||
+       f.name?.toLowerCase() === 'photo url' ||
+       f.name?.toLowerCase() === 'photo' ||
+       f.name?.toLowerCase() === 'avatar' ||
+       f.name?.toLowerCase() === 'avatar url' ||
+       f.name?.toLowerCase() === 'profile image' ||
+       f.name?.toLowerCase() === 'linkedin photo') &&
+      f.value_type === 6
+    ),
     // Note: "Current Organization" is an Affinity Data enrichment field
     // and cannot be set via API - it's auto-populated by Affinity's system
     _all: personFields
@@ -618,6 +659,7 @@ async function findPersonFields() {
     sourceOfIntroduction: fieldsCache.sourceOfIntroduction?.name,
     sourceText: fieldsCache.sourceText?.name,
     contactType: fieldsCache.contactType?.name,
+    profilePhoto: fieldsCache.profilePhoto?.name,
     totalFields: personFields.length
   });
 
@@ -824,6 +866,15 @@ async function populatePersonFields(personId, profileData, isNewPerson = true, t
     );
   }
 
+  // Profile Photo URL
+  if (fields.profilePhoto && profileData.profileImageUrl) {
+    fieldPromises.push(
+      addFieldValue(fields.profilePhoto.id, personId, profileData.profileImageUrl)
+        .then(result => result ? { field: 'profilePhoto', success: true } : null)
+        .catch(() => null)
+    );
+  }
+
   // Source of Introduction (only for new persons)
   if (isNewPerson) {
     // Try dropdown field first
@@ -1012,11 +1063,22 @@ async function createPerson(personData, tags = []) {
 
 /**
  * Add a note to a person in Affinity
+ * Automatically appends syncer info
  */
-async function addNote(personId, content) {
+async function addNote(personId, content, includeFooter = true) {
+  // Get current user for attribution
+  let finalContent = content;
+  if (includeFooter) {
+    const user = await getCurrentUser();
+    if (user && user.firstName) {
+      const syncerName = user.lastName ? `${user.firstName} ${user.lastName.charAt(0)}.` : user.firstName;
+      finalContent = content.trimEnd() + `\n\n_Synced by ${syncerName}_`;
+    }
+  }
+
   const payload = {
     person_ids: [personId],
-    content: content
+    content: finalContent
   };
 
   const result = await affinityRequest('/notes', {
@@ -1904,6 +1966,91 @@ async function getLists() {
 }
 
 /**
+ * Add a person to a specific list
+ */
+async function addPersonToList(personId, listId) {
+  try {
+    const result = await affinityRequest(`/lists/${listId}/list-entries`, {
+      method: 'POST',
+      body: JSON.stringify({
+        entity_id: personId,
+        entity_type: 0 // 0 = person
+      })
+    });
+    console.log('[LinkedIn to Affinity] Added person to list:', result);
+    return result;
+  } catch (error) {
+    // Ignore "already exists" errors
+    if (error.message?.includes('already exists') || error.message?.includes('duplicate')) {
+      console.log('[LinkedIn to Affinity] Person already in list');
+      return { already_exists: true };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Get person preview data (notes, lists, last interaction)
+ */
+async function getPersonPreview(personId) {
+  try {
+    const preview = {
+      noteCount: 0,
+      lastNote: null,
+      lists: [],
+      lastInteraction: null
+    };
+
+    // Fetch notes for this person
+    try {
+      const notes = await affinityRequest(`/notes?person_id=${personId}`);
+      if (notes && notes.length > 0) {
+        preview.noteCount = notes.length;
+        // Sort by created_at desc and get the most recent
+        const sorted = notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        const latestNote = sorted[0];
+        preview.lastNote = {
+          preview: (latestNote.content || '').substring(0, 100) + (latestNote.content?.length > 100 ? '...' : ''),
+          date: latestNote.created_at
+        };
+      }
+    } catch (e) {
+      console.log('[LinkedIn to Affinity] Could not fetch notes:', e.message);
+    }
+
+    // Fetch lists this person is on
+    try {
+      const listEntries = await affinityRequest(`/list-entries?person_id=${personId}`);
+      if (listEntries && listEntries.length > 0) {
+        const allLists = await getLists();
+        const listMap = new Map(allLists.map(l => [l.id, l.name]));
+
+        preview.lists = listEntries
+          .filter(entry => listMap.has(entry.list_id))
+          .map(entry => listMap.get(entry.list_id));
+      }
+    } catch (e) {
+      console.log('[LinkedIn to Affinity] Could not fetch list entries:', e.message);
+    }
+
+    // Get interaction dates from person data
+    try {
+      const person = await affinityRequest(`/persons/${personId}`);
+      if (person?.interaction_dates?.last_interaction_date) {
+        preview.lastInteraction = person.interaction_dates.last_interaction_date;
+      }
+    } catch (e) {
+      console.log('[LinkedIn to Affinity] Could not fetch person details:', e.message);
+    }
+
+    return preview;
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error getting person preview:', error);
+    return null;
+  }
+}
+
+/**
  * Fetch entries for a specific list
  */
 async function getListEntries(listId) {
@@ -2249,6 +2396,53 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'getLists') {
+    // Fetch all lists for the dropdown
+    getLists()
+      .then((lists) => {
+        // Filter to only person-type lists (type 0) and sort by name
+        const personLists = lists
+          .filter(l => l.type === 0)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        sendResponse({ success: true, lists: personLists });
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] getLists error:', error);
+        sendResponse({ success: false, error: error.message || 'Unknown error' });
+      });
+
+    return true;
+  }
+
+  if (request.action === 'addPersonToList') {
+    // Add a person to a specific list
+    addPersonToList(request.personId, request.listId)
+      .then((entry) => {
+        console.log('[LinkedIn to Affinity] Added person to list:', entry);
+        sendResponse({ success: true, entry });
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] addPersonToList error:', error);
+        sendResponse({ success: false, error: error.message || 'Unknown error' });
+      });
+
+    return true;
+  }
+
+  if (request.action === 'getPersonPreview') {
+    // Get person details for inline preview
+    getPersonPreview(request.personId)
+      .then((preview) => {
+        sendResponse({ success: true, preview });
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] getPersonPreview error:', error);
+        sendResponse({ success: false, error: error.message || 'Unknown error' });
+      });
+
+    return true;
+  }
+
   // Unknown action
   console.warn('[LinkedIn to Affinity] Unknown action:', request.action);
   return false;
@@ -2274,6 +2468,96 @@ console.log('[LinkedIn to Affinity] Background service worker loaded');
 
 // Initialize badge count on load
 updateBadgeCount();
+
+// ============================================================================
+// Follow-up Notifications
+// ============================================================================
+
+/**
+ * Check for overdue follow-ups and show notifications
+ */
+async function checkFollowUpNotifications() {
+  try {
+    // Check if notifications are enabled in settings
+    const settings = await browserAPI.storage.sync.get(['affinityApiKey', 'notificationsEnabled']);
+    if (!settings.affinityApiKey || settings.notificationsEnabled === false) {
+      return;
+    }
+
+    // Get dashboard data which includes follow-ups
+    const dashboardData = await getDashboardData();
+    if (!dashboardData || !dashboardData.followUps) {
+      return;
+    }
+
+    // Filter overdue follow-ups
+    const overdueFollowUps = dashboardData.followUps.filter(f => f.overdue);
+    if (overdueFollowUps.length === 0) {
+      return;
+    }
+
+    // Check when we last showed a notification
+    const lastNotified = await browserAPI.storage.local.get(['lastFollowUpNotification']);
+    const now = Date.now();
+    const hoursSinceLastNotification = lastNotified.lastFollowUpNotification
+      ? (now - lastNotified.lastFollowUpNotification) / (1000 * 60 * 60)
+      : 24;
+
+    // Only notify if it's been at least 4 hours since last notification
+    if (hoursSinceLastNotification < 4) {
+      return;
+    }
+
+    // Show notification
+    const count = overdueFollowUps.length;
+    const firstFollowUp = overdueFollowUps[0];
+
+    browserAPI.notifications.create('followup-reminder', {
+      type: 'basic',
+      iconUrl: 'icons/icon-128.png',
+      title: `${count} Follow-up${count > 1 ? 's' : ''} Overdue`,
+      message: count === 1
+        ? `${firstFollowUp.person}: ${firstFollowUp.action}`
+        : `${firstFollowUp.person} and ${count - 1} other${count > 2 ? 's' : ''} need attention`,
+      priority: 1
+    });
+
+    // Update last notification time
+    await browserAPI.storage.local.set({ lastFollowUpNotification: now });
+
+    console.log('[LinkedIn to Affinity] Sent follow-up notification for', count, 'overdue items');
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error checking follow-up notifications:', error);
+  }
+}
+
+// Set up periodic alarm for follow-up checks
+if (browserAPI.alarms) {
+  // Create alarm to check every 2 hours
+  browserAPI.alarms.create('followUpCheck', {
+    periodInMinutes: 120 // Every 2 hours
+  });
+
+  // Handle alarm
+  browserAPI.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'followUpCheck') {
+      checkFollowUpNotifications();
+    }
+  });
+
+  // Also check on service worker startup
+  setTimeout(checkFollowUpNotifications, 10000); // Wait 10 seconds after startup
+}
+
+// Handle notification clicks
+if (browserAPI.notifications) {
+  browserAPI.notifications.onClicked.addListener((notificationId) => {
+    if (notificationId === 'followup-reminder') {
+      // Open the extension popup (or Affinity dashboard)
+      browserAPI.action.openPopup();
+    }
+  });
+}
 
 // Export for testing (Node.js/Jest environment)
 if (typeof module !== 'undefined' && module.exports) {
