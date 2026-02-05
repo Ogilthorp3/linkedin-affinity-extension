@@ -356,10 +356,20 @@
       padding: 8px 0;
     }
 
+    .pipeline-icon {
+      font-size: 14px;
+      width: 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
     .pipeline-name {
       flex: 1;
       font-size: 13px;
       color: #1d1d1f;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .pipeline-bar-container {
@@ -786,14 +796,14 @@
         </div>
       </div>
 
-      <!-- Pipeline -->
+      <!-- Lists -->
       <div class="dashboard-section">
-        <div class="section-title" id="pipeline-title">Pipeline</div>
-        <ul class="pipeline-list" id="pipeline-list">
+        <div class="section-title" id="lists-title">Your Lists</div>
+        <ul class="pipeline-list" id="lists-list">
           <!-- Populated by JS -->
         </ul>
-        <div id="pipeline-empty" class="dashboard-empty" style="display: none;">
-          No pipeline data found
+        <div id="lists-empty" class="dashboard-empty" style="display: none;">
+          No lists found
         </div>
       </div>
 

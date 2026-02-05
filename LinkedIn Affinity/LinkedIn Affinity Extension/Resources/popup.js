@@ -217,8 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('stat-contacts').textContent = data.weeklyStats?.contactsSynced || 0;
     document.getElementById('stat-notes').textContent = data.weeklyStats?.notesAdded || 0;
 
-    // Render pipeline
-    renderPipeline(data.pipeline);
+    // Render lists
+    renderLists(data.lists || []);
 
     // Render recent activity
     renderActivity(data.recentActivity || []);
@@ -227,14 +227,13 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFollowUps(data.followUps || []);
   }
 
-  function renderPipeline(pipeline) {
-    const listEl = document.getElementById('pipeline-list');
-    const emptyEl = document.getElementById('pipeline-empty');
-    const titleEl = document.getElementById('pipeline-title');
+  function renderLists(lists) {
+    const listEl = document.getElementById('lists-list');
+    const emptyEl = document.getElementById('lists-empty');
 
     listEl.innerHTML = '';
 
-    if (!pipeline || !pipeline.stages || pipeline.stages.length === 0) {
+    if (!lists || lists.length === 0) {
       listEl.style.display = 'none';
       emptyEl.style.display = 'block';
       return;
@@ -243,23 +242,20 @@ document.addEventListener('DOMContentLoaded', () => {
     listEl.style.display = 'block';
     emptyEl.style.display = 'none';
 
-    if (pipeline.listName) {
-      titleEl.textContent = pipeline.listName;
-    }
-
     // Find max count for bar scaling
-    const maxCount = Math.max(...pipeline.stages.map(s => s.count), 1);
+    const maxCount = Math.max(...lists.map(l => l.count), 1);
 
-    pipeline.stages.forEach(stage => {
+    lists.forEach(list => {
       const item = document.createElement('li');
       item.className = 'pipeline-item';
-      const barWidth = (stage.count / maxCount) * 100;
+      const barWidth = (list.count / maxCount) * 100;
       item.innerHTML = `
-        <span class="pipeline-name">${escapeHtml(stage.name)}</span>
+        <span class="pipeline-icon">${list.icon || '📋'}</span>
+        <span class="pipeline-name">${escapeHtml(list.name)}</span>
         <div class="pipeline-bar-container">
           <div class="pipeline-bar" style="width: ${barWidth}%"></div>
         </div>
-        <span class="pipeline-count">${stage.count}</span>
+        <span class="pipeline-count">${list.count}</span>
       `;
       listEl.appendChild(item);
     });

@@ -2049,93 +2049,50 @@ async function getDashboardData() {
     weekStart: currentWeek
   };
 
-  // Find the primary pipeline list (first list with stages/dropdown fields)
-  let pipeline = null;
+  // Build lists overview - show all lists with their entry counts
+  const listsOverview = [];
 
   if (lists.length > 0) {
-    // Look for a list that looks like a deal pipeline
-    const pipelineList = lists.find(list =>
-      list.name?.toLowerCase().includes('deal') ||
-      list.name?.toLowerCase().includes('pipeline') ||
-      list.name?.toLowerCase().includes('opportunity')
-    ) || lists[0]; // Fall back to first list
-
-    if (pipelineList) {
+    // Fetch entry counts for each list (in parallel for speed)
+    const listPromises = lists.slice(0, 8).map(async (list) => {
       try {
-        // Get list entries
-        const entries = await getListEntries(pipelineList.id);
-
-        // Get list fields to find stage field
-        const listFields = await affinityRequest(`/lists/${pipelineList.id}/fields`);
-        const stageField = listFields?.find(f =>
-          f.value_type === 7 || // Ranked dropdown
-          f.value_type === 2 || // Regular dropdown
-          f.name?.toLowerCase().includes('stage') ||
-          f.name?.toLowerCase().includes('status')
-        );
-
-        if (stageField && stageField.dropdown_options) {
-          // Build option ID to name mapping
-          const optionIdToName = new Map();
-          for (const opt of stageField.dropdown_options) {
-            optionIdToName.set(opt.id, opt.text);
-          }
-
-          // Count entries by stage using field values
-          const stageCounts = new Map();
-
-          // Initialize all stages with 0
-          for (const opt of stageField.dropdown_options) {
-            stageCounts.set(opt.text, 0);
-          }
-
-          // Get field values for entries and count by stage
-          if (entries && entries.length > 0) {
-            // Fetch field values for all entries (batch if needed)
-            try {
-              const fieldValuesResponse = await affinityRequest(
-                `/field-values?list_entry_id=${entries.map(e => e.id).join(',')}`
-              );
-              const fieldValues = fieldValuesResponse || [];
-
-              // Count entries by stage field value
-              for (const fv of fieldValues) {
-                if (fv.field_id === stageField.id && fv.value) {
-                  const stageName = optionIdToName.get(fv.value);
-                  if (stageName) {
-                    stageCounts.set(stageName, (stageCounts.get(stageName) || 0) + 1);
-                  }
-                }
-              }
-            } catch (fieldError) {
-              console.log('[LinkedIn to Affinity] Could not fetch field values, using entry count:', fieldError.message);
-              // Fallback: just show total entries
-              if (stageField.dropdown_options.length > 0) {
-                stageCounts.set(stageField.dropdown_options[0].text, entries.length);
-              }
-            }
-          }
-
-          // Build stages array with actual counts
-          const stages = stageField.dropdown_options.map(opt => ({
-            name: opt.text,
-            count: stageCounts.get(opt.text) || 0
-          }));
-
-          // Only include stages that have entries or show all if none have entries
-          const hasAnyCounts = stages.some(s => s.count > 0);
-          pipeline = {
-            listName: pipelineList.name,
-            listId: pipelineList.id,
-            stages: hasAnyCounts
-              ? stages.filter(s => s.count > 0).slice(0, 6)
-              : stages.slice(0, 6)
-          };
-        }
+        const entries = await getListEntries(list.id);
+        return {
+          id: list.id,
+          name: list.name,
+          count: entries?.length || 0,
+          type: list.type // 0 = person, 1 = organization, 8 = opportunity
+        };
       } catch (error) {
-        console.error('[LinkedIn to Affinity] Error processing pipeline:', error);
+        console.log('[LinkedIn to Affinity] Could not fetch list entries for:', list.name);
+        return {
+          id: list.id,
+          name: list.name,
+          count: 0,
+          type: list.type
+        };
       }
-    }
+    });
+
+    const listResults = await Promise.all(listPromises);
+
+    // Sort by count (most entries first), then add to overview
+    listResults
+      .sort((a, b) => b.count - a.count)
+      .forEach(list => {
+        // Determine icon based on list type
+        let icon = '📋';
+        if (list.type === 0) icon = '👤'; // Person list
+        else if (list.type === 1) icon = '🏢'; // Organization list
+        else if (list.type === 8) icon = '💼'; // Opportunity list
+
+        listsOverview.push({
+          id: list.id,
+          name: list.name,
+          count: list.count,
+          icon: icon
+        });
+      });
   }
 
   // Build recent activity from notes
@@ -2179,7 +2136,7 @@ async function getDashboardData() {
 
   return {
     weeklyStats,
-    pipeline,
+    lists: listsOverview,
     recentActivity,
     followUps
   };
