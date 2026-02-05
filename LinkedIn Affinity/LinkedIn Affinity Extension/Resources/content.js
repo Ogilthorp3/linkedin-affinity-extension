@@ -7,6 +7,17 @@
 // ============================================================
 
 /**
+ * Convert a Date to local YYYY-MM-DD string (not UTC)
+ * This fixes timezone issues where toISOString() returns next day in UTC
+ */
+function _toLocalDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Escape HTML to prevent XSS
  */
 function _escapeHtml(text) {
@@ -424,7 +435,7 @@ function _isConversationItem(element) {
     if (!text) return null;
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = _toLocalDateString(now);
     const lowerText = text.toLowerCase().trim();
 
     // Today
@@ -442,7 +453,7 @@ function _isConversationItem(element) {
     if (lowerText.includes('yesterday')) {
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
-      return yesterday.toISOString().split('T')[0];
+      return _toLocalDateString(yesterday);
     }
 
     // Days ago (e.g., "3 days ago")
@@ -451,7 +462,7 @@ function _isConversationItem(element) {
       const daysAgo = parseInt(daysAgoMatch[1], 10);
       const date = new Date(now);
       date.setDate(date.getDate() - daysAgo);
-      return date.toISOString().split('T')[0];
+      return _toLocalDateString(date);
     }
 
     // Week patterns (e.g., "1 week ago", "2 weeks ago")
@@ -460,7 +471,7 @@ function _isConversationItem(element) {
       const weeksAgo = parseInt(weeksAgoMatch[1], 10);
       const date = new Date(now);
       date.setDate(date.getDate() - (weeksAgo * 7));
-      return date.toISOString().split('T')[0];
+      return _toLocalDateString(date);
     }
 
     // Month patterns (e.g., "1 month ago", "2 months ago")
@@ -469,7 +480,7 @@ function _isConversationItem(element) {
       const monthsAgo = parseInt(monthsAgoMatch[1], 10);
       const date = new Date(now);
       date.setMonth(date.getMonth() - monthsAgo);
-      return date.toISOString().split('T')[0];
+      return _toLocalDateString(date);
     }
 
     // Month + day with optional year (e.g., "Jan 15", "January 15", "Jan 15, 2023")
@@ -1082,7 +1093,7 @@ function _isConversationItem(element) {
     if (!text) return null;
 
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const today = _toLocalDateString(now);
     const upperText = text.toUpperCase().trim();
 
     // Handle "TODAY"
@@ -1094,7 +1105,7 @@ function _isConversationItem(element) {
     if (upperText === 'YESTERDAY') {
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
-      return yesterday.toISOString().split('T')[0];
+      return _toLocalDateString(yesterday);
     }
 
     // Handle day names like "TUESDAY", "MONDAY" etc - calculate date
@@ -1106,7 +1117,7 @@ function _isConversationItem(element) {
       if (daysAgo <= 0) daysAgo += 7; // Must be in the past week
       const date = new Date(now);
       date.setDate(date.getDate() - daysAgo);
-      return date.toISOString().split('T')[0];
+      return _toLocalDateString(date);
     }
 
     // Handle "MAY 24, 2023" or "MAY 24" format
@@ -1213,7 +1224,7 @@ function _isConversationItem(element) {
             const date = new Date(isoDateTime);
             message.timestamp = isoDateTime; // Keep ISO for parsing
             message.timestampDisplay = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            message.date = date.toISOString().split('T')[0]; // YYYY-MM-DD
+            message.date = _toLocalDateString(date); // YYYY-MM-DD
           } else {
             // Fall back to text content and try to parse
             const textTimestamp = timeEl.textContent?.trim();

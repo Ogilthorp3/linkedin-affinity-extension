@@ -7,6 +7,17 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 const AFFINITY_API_BASE = 'https://api.affinity.co';
 
 /**
+ * Convert a Date to local YYYY-MM-DD string (not UTC)
+ * This fixes timezone issues where toISOString() returns next day in UTC
+ */
+function toLocalDateString(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Get stored API key from extension storage
  */
 async function getApiKey() {
@@ -988,7 +999,7 @@ function parseMessageDay(message) {
 
   const currentYear = new Date().getFullYear();
   const now = new Date();
-  const today = now.toISOString().split('T')[0];
+  const today = toLocalDateString(now);
   const lowerTimestamp = timestamp.toLowerCase();
 
   // Handle relative timestamps
@@ -1006,7 +1017,7 @@ function parseMessageDay(message) {
   if (lowerTimestamp.includes('yesterday')) {
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toISOString().split('T')[0];
+    return toLocalDateString(yesterday);
   }
 
   // Days ago
@@ -1014,7 +1025,7 @@ function parseMessageDay(message) {
   if (daysAgoMatch) {
     const date = new Date(now);
     date.setDate(date.getDate() - parseInt(daysAgoMatch[1], 10));
-    return date.toISOString().split('T')[0];
+    return toLocalDateString(date);
   }
 
   // Weeks ago
@@ -1022,7 +1033,7 @@ function parseMessageDay(message) {
   if (weeksAgoMatch) {
     const date = new Date(now);
     date.setDate(date.getDate() - (parseInt(weeksAgoMatch[1], 10) * 7));
-    return date.toISOString().split('T')[0];
+    return toLocalDateString(date);
   }
 
   // Months ago
@@ -1030,7 +1041,7 @@ function parseMessageDay(message) {
   if (monthsAgoMatch) {
     const date = new Date(now);
     date.setMonth(date.getMonth() - parseInt(monthsAgoMatch[1], 10));
-    return date.toISOString().split('T')[0];
+    return toLocalDateString(date);
   }
 
   // Check if this looks like a timestamp without a year (e.g., "Jan 15, 10:30 AM")
@@ -1069,7 +1080,7 @@ function parseMessageDay(message) {
     return null;
   }
 
-  return date.toISOString().split('T')[0]; // YYYY-MM-DD
+  return toLocalDateString(date); // YYYY-MM-DD
 }
 
 /**
@@ -1124,7 +1135,7 @@ function formatConversationNote(data) {
 
   const senderName = sender?.name || 'Unknown';
   const capturedDate = new Date(capturedAt);
-  const dayKey = capturedDate.toISOString().split('T')[0];
+  const dayKey = toLocalDateString(capturedDate);
 
   // Extract thread ID
   const threadIdMatch = conversationUrl.match(/\/(?:thread|conversation)\/([^/?]+)/);
@@ -1942,7 +1953,7 @@ async function getDashboardData() {
   ]);
 
   // Get stored weekly stats (reset if it's a new week)
-  const currentWeek = weekStart.toISOString().split('T')[0];
+  const currentWeek = toLocalDateString(weekStart);
   let weeklyContactsCount = 0;
   let weeklyNotesCount = 0;
 
