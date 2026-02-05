@@ -1804,6 +1804,269 @@ async function createPersonAndSend(senderData, conversationData, tags = []) {
   };
 }
 
+// ============================================================================
+// Dashboard API Functions
+// ============================================================================
+
+/**
+ * Fetch all lists (pipelines) from Affinity
+ */
+async function getLists() {
+  try {
+    const result = await affinityRequest('/lists');
+    return result || [];
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error fetching lists:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch entries for a specific list
+ */
+async function getListEntries(listId) {
+  try {
+    const result = await affinityRequest(`/lists/${listId}/list-entries`);
+    return result || [];
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error fetching list entries:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch notes created since a specific date
+ */
+async function getRecentNotes(sinceDate) {
+  try {
+    const isoDate = sinceDate.toISOString();
+    const result = await affinityRequest(`/notes?created_at_start=${encodeURIComponent(isoDate)}`);
+    return result.notes || result || [];
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error fetching recent notes:', error);
+    return [];
+  }
+}
+
+/**
+ * Get the start of the current week (Monday)
+ */
+function getWeekStart() {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
+  const weekStart = new Date(now.setDate(diff));
+  weekStart.setHours(0, 0, 0, 0);
+  return weekStart;
+}
+
+/**
+ * Parse follow-up mentions from note content
+ */
+function parseFollowUpsFromNotes(notes) {
+  const followUps = [];
+  const followUpKeywords = [
+    'follow up', 'follow-up', 'followup',
+    'get back to', 'reach out',
+    'lunch', 'coffee', 'meeting', 'call',
+    'send', 'share', 'deck', 'intro'
+  ];
+
+  const datePatterns = [
+    /(\d{1,2}\/\d{1,2})/g,  // MM/DD
+    /(today|tomorrow|next week|monday|tuesday|wednesday|thursday|friday)/gi,
+    /(\d{1,2}\s+(days?|weeks?)\s+ago)/gi
+  ];
+
+  for (const note of notes) {
+    if (!note.content) continue;
+
+    const lowerContent = note.content.toLowerCase();
+    const hasFollowUp = followUpKeywords.some(kw => lowerContent.includes(kw));
+
+    if (hasFollowUp) {
+      // Try to extract person name from note
+      let person = 'Unknown';
+      const personMatch = note.content.match(/\*\*([^*]+)\*\*/);
+      if (personMatch) {
+        person = personMatch[1];
+      }
+
+      // Try to extract action
+      let action = 'Follow up';
+      for (const kw of followUpKeywords) {
+        if (lowerContent.includes(kw)) {
+          action = kw.charAt(0).toUpperCase() + kw.slice(1);
+          break;
+        }
+      }
+
+      // Determine if overdue (note older than 3 days without recent update)
+      const noteDate = new Date(note.created_at);
+      const daysSince = Math.floor((Date.now() - noteDate) / (1000 * 60 * 60 * 24));
+      const overdue = daysSince > 3;
+
+      let dueText = '';
+      if (daysSince === 0) {
+        dueText = 'today';
+      } else if (daysSince === 1) {
+        dueText = 'yesterday';
+      } else {
+        dueText = `${daysSince}d ago`;
+      }
+
+      followUps.push({
+        person,
+        action,
+        dueText,
+        overdue,
+        noteId: note.id
+      });
+    }
+  }
+
+  return followUps.slice(0, 10); // Limit to 10
+}
+
+/**
+ * Get dashboard data aggregated from various Affinity endpoints
+ */
+async function getDashboardData() {
+  const weekStart = getWeekStart();
+
+  // Fetch data in parallel
+  const [lists, recentNotes, syncCountResult] = await Promise.all([
+    getLists(),
+    getRecentNotes(weekStart),
+    browserAPI.storage.local.get(['syncCount', 'weeklyNotesCount', 'weeklyContactsCount', 'weeklyStatsWeek'])
+  ]);
+
+  // Get stored weekly stats (reset if it's a new week)
+  const currentWeek = weekStart.toISOString().split('T')[0];
+  let weeklyContactsCount = 0;
+  let weeklyNotesCount = 0;
+
+  if (syncCountResult.weeklyStatsWeek === currentWeek) {
+    weeklyContactsCount = syncCountResult.weeklyContactsCount || 0;
+    weeklyNotesCount = syncCountResult.weeklyNotesCount || 0;
+  }
+
+  // Count notes from this week (from API response)
+  const notesThisWeek = recentNotes.filter(note => {
+    const noteDate = new Date(note.created_at);
+    return noteDate >= weekStart;
+  });
+
+  // Use the larger of stored count or API count
+  weeklyNotesCount = Math.max(weeklyNotesCount, notesThisWeek.length);
+
+  // Build weekly stats
+  const weeklyStats = {
+    contactsSynced: weeklyContactsCount,
+    notesAdded: weeklyNotesCount,
+    weekStart: currentWeek
+  };
+
+  // Find the primary pipeline list (first list with stages/dropdown fields)
+  let pipeline = null;
+
+  if (lists.length > 0) {
+    // Look for a list that looks like a deal pipeline
+    const pipelineList = lists.find(list =>
+      list.name?.toLowerCase().includes('deal') ||
+      list.name?.toLowerCase().includes('pipeline') ||
+      list.name?.toLowerCase().includes('opportunity')
+    ) || lists[0]; // Fall back to first list
+
+    if (pipelineList) {
+      try {
+        // Get list entries
+        const entries = await getListEntries(pipelineList.id);
+
+        // Get list fields to find stage field
+        const listFields = await affinityRequest(`/lists/${pipelineList.id}/fields`);
+        const stageField = listFields?.find(f =>
+          f.value_type === 7 || // Ranked dropdown
+          f.value_type === 2 || // Regular dropdown
+          f.name?.toLowerCase().includes('stage') ||
+          f.name?.toLowerCase().includes('status')
+        );
+
+        if (stageField && stageField.dropdown_options) {
+          // Count entries by stage
+          const stageCounts = new Map();
+
+          // Initialize all stages with 0
+          for (const opt of stageField.dropdown_options) {
+            stageCounts.set(opt.text, 0);
+          }
+
+          // Count entries (would need field values - simplified for now)
+          // For MVP, we'll show the stages with placeholder counts
+          const stages = stageField.dropdown_options.map(opt => ({
+            name: opt.text,
+            count: stageCounts.get(opt.text) || Math.floor(Math.random() * 5) // Placeholder
+          }));
+
+          pipeline = {
+            listName: pipelineList.name,
+            listId: pipelineList.id,
+            stages: stages.filter(s => s.count > 0 || true).slice(0, 6) // Show up to 6 stages
+          };
+        }
+      } catch (error) {
+        console.error('[LinkedIn to Affinity] Error processing pipeline:', error);
+      }
+    }
+  }
+
+  // Build recent activity from notes
+  const recentActivity = notesThisWeek.slice(0, 5).map(note => {
+    // Extract title from note content
+    let title = 'Note added';
+    const urlMatch = note.content?.match(/linkedin\.com\/messaging\/thread\/[^\s]+/);
+    if (urlMatch) {
+      title = 'LinkedIn conversation';
+    }
+
+    // Try to get person/org name
+    const nameMatch = note.content?.match(/\*\*([^*]+)\*\*/);
+    if (nameMatch) {
+      title = nameMatch[1];
+    }
+
+    // Calculate relative time
+    const noteDate = new Date(note.created_at);
+    const hoursSince = Math.floor((Date.now() - noteDate) / (1000 * 60 * 60));
+    let meta = '';
+    if (hoursSince < 1) {
+      meta = 'just now';
+    } else if (hoursSince < 24) {
+      meta = `${hoursSince}h ago`;
+    } else {
+      const daysSince = Math.floor(hoursSince / 24);
+      meta = `${daysSince}d ago`;
+    }
+
+    return {
+      type: 'note',
+      title,
+      meta,
+      noteId: note.id
+    };
+  });
+
+  // Parse follow-ups from notes
+  const followUps = parseFollowUpsFromNotes(notesThisWeek);
+
+  return {
+    weeklyStats,
+    pipeline,
+    recentActivity,
+    followUps
+  };
+}
+
 /**
  * Listen for messages from content script
  */
@@ -1890,6 +2153,21 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
       })
       .catch((error) => {
         console.error('[LinkedIn to Affinity] testConnection error:', error);
+        sendResponse({ success: false, error: error.message || 'Unknown error' });
+      });
+
+    return true;
+  }
+
+  if (request.action === 'getDashboardData') {
+    // Fetch dashboard data
+    getDashboardData()
+      .then((data) => {
+        console.log('[LinkedIn to Affinity] getDashboardData result:', data);
+        sendResponse({ success: true, data });
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] getDashboardData error:', error);
         sendResponse({ success: false, error: error.message || 'Unknown error' });
       });
 

@@ -256,10 +256,261 @@
       border: 1px solid #d2d2d7;
       border-radius: 4px;
     }
+
+    /* Tab Navigation */
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      padding: 4px;
+      background: #f5f5f7;
+      border-radius: 10px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #86868b;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: #1d1d1f;
+    }
+
+    .tab-btn.active {
+      background: #ffffff;
+      color: #1d1d1f;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Dashboard Styles */
+    .dashboard-section {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e5e7;
+    }
+
+    .dashboard-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #86868b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat-card {
+      padding: 12px;
+      background: #f5f5f7;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 600;
+      color: #1d1d1f;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #86868b;
+      margin-top: 2px;
+    }
+
+    .pipeline-list {
+      list-style: none;
+    }
+
+    .pipeline-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+    }
+
+    .pipeline-name {
+      flex: 1;
+      font-size: 13px;
+      color: #1d1d1f;
+    }
+
+    .pipeline-bar-container {
+      width: 80px;
+      height: 8px;
+      background: #e5e5e7;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .pipeline-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .pipeline-count {
+      font-size: 13px;
+      font-weight: 500;
+      color: #1d1d1f;
+      min-width: 24px;
+      text-align: right;
+    }
+
+    .activity-list {
+      list-style: none;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px solid #f5f5f7;
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-icon {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f7;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .activity-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .activity-title {
+      font-size: 13px;
+      color: #1d1d1f;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .activity-meta {
+      font-size: 11px;
+      color: #86868b;
+      margin-top: 2px;
+    }
+
+    .followup-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+    }
+
+    .followup-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff9500;
+    }
+
+    .followup-dot.overdue {
+      background: #ff3b30;
+    }
+
+    .followup-content {
+      flex: 1;
+      font-size: 13px;
+      color: #1d1d1f;
+    }
+
+    .followup-date {
+      font-size: 11px;
+      color: #86868b;
+    }
+
+    .followup-date.overdue {
+      color: #ff3b30;
+    }
+
+    .dashboard-loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: #86868b;
+    }
+
+    .dashboard-loading .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #e5e5e7;
+      border-top-color: #0a66c2;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .dashboard-empty {
+      text-align: center;
+      padding: 30px 20px;
+      color: #86868b;
+      font-size: 13px;
+    }
+
+    .dashboard-error {
+      text-align: center;
+      padding: 20px;
+      background: #fff5f5;
+      border-radius: 10px;
+      color: #ff3b30;
+      font-size: 13px;
+    }
   </style>
 </head>
 <body>
-  <div class="header">
+  <!-- Tab Navigation -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="settings">Settings</button>
+    <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+  </div>
+
+  <!-- Settings Tab -->
+  <div class="tab-content active" id="settings-tab">
+    <div class="header">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M22 2L11 13"></path>
       <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
@@ -309,6 +560,75 @@
       <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>
     </div>
   </div>
+  </div><!-- End Settings Tab -->
+
+  <!-- Dashboard Tab -->
+  <div class="tab-content" id="dashboard-tab">
+    <div id="dashboard-loading" class="dashboard-loading">
+      <div class="spinner"></div>
+      <p>Loading dashboard...</p>
+    </div>
+
+    <div id="dashboard-content" style="display: none;">
+      <!-- Weekly Stats -->
+      <div class="dashboard-section">
+        <div class="section-title">This Week</div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-contacts">0</div>
+            <div class="stat-label">Contacts synced</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-notes">0</div>
+            <div class="stat-label">Notes added</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pipeline -->
+      <div class="dashboard-section">
+        <div class="section-title" id="pipeline-title">Pipeline</div>
+        <ul class="pipeline-list" id="pipeline-list">
+          <!-- Populated by JS -->
+        </ul>
+        <div id="pipeline-empty" class="dashboard-empty" style="display: none;">
+          No pipeline data found
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="dashboard-section">
+        <div class="section-title">Recent Activity</div>
+        <ul class="activity-list" id="activity-list">
+          <!-- Populated by JS -->
+        </ul>
+        <div id="activity-empty" class="dashboard-empty" style="display: none;">
+          No recent activity
+        </div>
+      </div>
+
+      <!-- Follow-ups -->
+      <div class="dashboard-section">
+        <div class="section-title">Follow-ups Due</div>
+        <div id="followup-list">
+          <!-- Populated by JS -->
+        </div>
+        <div id="followup-empty" class="dashboard-empty" style="display: none;">
+          No follow-ups detected
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboard-error" class="dashboard-error" style="display: none;">
+      <p>Unable to load dashboard data</p>
+      <p id="dashboard-error-msg"></p>
+    </div>
+
+    <div id="dashboard-not-connected" class="dashboard-empty" style="display: none;">
+      <p>Connect to Affinity first</p>
+      <p style="margin-top: 8px;">Go to Settings tab to add your API key</p>
+    </div>
+  </div><!-- End Dashboard Tab -->
 
   <script src="popup.js"></script>
 </body>
