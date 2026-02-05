@@ -453,6 +453,12 @@
   color: #0a66c2;
 }
 
+/* Detected contact info from messages */
+.affinity-detected-info {
+  color: #34c759;
+  font-weight: 500;
+}
+
 /* Tags section for VC workflow */
 .affinity-tags-section {
   padding: 12px 20px;
@@ -899,4 +905,288 @@
 
 .affinity-welcome-dismiss:hover {
   background: #004182;
+}
+
+/* ============================================
+   DARK MODE SUPPORT
+   Matches LinkedIn's dark mode
+   ============================================ */
+@media (prefers-color-scheme: dark) {
+  /* Button */
+  .affinity-send-btn,
+  #affinity-send-btn {
+    color: #70b5f9;
+    border-color: #70b5f9;
+  }
+
+  .affinity-send-btn:hover,
+  #affinity-send-btn:hover {
+    background: #70b5f9;
+    color: #1d2226;
+  }
+
+  /* Loading state */
+  .affinity-send-btn.affinity-loading,
+  #affinity-send-btn.affinity-loading {
+    border-color: #666;
+    color: #666;
+  }
+
+  /* Toast */
+  .affinity-toast {
+    background: #38434f;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Modal Overlay */
+  .affinity-modal-overlay {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  /* Modal */
+  .affinity-modal {
+    background: #1d2226;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  .affinity-modal-loading::before {
+    background: rgba(29, 34, 38, 0.9);
+  }
+
+  .affinity-modal-loading::after {
+    border-color: #38434f;
+    border-top-color: #70b5f9;
+  }
+
+  /* Header */
+  .affinity-modal-header {
+    border-bottom-color: #38434f;
+  }
+
+  .affinity-modal-header h3 {
+    color: #ffffff;
+  }
+
+  .affinity-modal-close {
+    color: #666;
+  }
+
+  .affinity-modal-close:hover {
+    color: #ffffff;
+  }
+
+  /* Subtitle */
+  .affinity-modal-subtitle {
+    color: #b0b7bd;
+    background: #283038;
+  }
+
+  /* Contact list */
+  .affinity-contact-item {
+    border-bottom-color: #38434f;
+  }
+
+  .affinity-contact-item:hover {
+    background: #283038;
+  }
+
+  .affinity-contact-name {
+    color: #ffffff;
+  }
+
+  .affinity-contact-email,
+  .affinity-contact-org {
+    color: #b0b7bd;
+  }
+
+  .affinity-contact-select {
+    color: #70b5f9;
+    border-color: #70b5f9;
+  }
+
+  .affinity-contact-select:hover {
+    background: #70b5f9;
+    color: #1d2226;
+  }
+
+  .affinity-no-matches {
+    color: #ffffff;
+  }
+
+  /* Preview card */
+  .affinity-preview-card {
+    background: linear-gradient(135deg, #283038 0%, #1d2226 100%);
+    border-color: #38434f;
+  }
+
+  .affinity-preview-header {
+    border-bottom-color: #38434f;
+  }
+
+  .affinity-preview-photo {
+    border-color: #38434f;
+  }
+
+  .affinity-preview-photo-placeholder {
+    background: linear-gradient(135deg, #38434f 0%, #283038 100%);
+    color: #b0b7bd;
+  }
+
+  .affinity-preview-name {
+    color: #ffffff;
+  }
+
+  .affinity-preview-headline {
+    color: #b0b7bd;
+  }
+
+  .affinity-preview-row {
+    color: #ffffff;
+  }
+
+  .affinity-preview-linkedin {
+    color: #70b5f9;
+  }
+
+  .affinity-detected-info {
+    color: #30d158;
+  }
+
+  /* Tags section */
+  .affinity-tags-section {
+    border-top-color: #38434f;
+    background: #283038;
+  }
+
+  .affinity-tags-label {
+    color: #b0b7bd;
+  }
+
+  .affinity-tag {
+    color: #ffffff;
+    background: #1d2226;
+    border-color: #38434f;
+  }
+
+  .affinity-tag:hover {
+    border-color: #70b5f9;
+    background: #283038;
+  }
+
+  .affinity-tag.selected {
+    background: #70b5f9;
+    border-color: #70b5f9;
+    color: #1d2226;
+  }
+
+  /* Notes section */
+  .affinity-notes-section {
+    border-top-color: #38434f;
+    background: #283038;
+  }
+
+  .affinity-notes-label {
+    color: #b0b7bd;
+  }
+
+  .affinity-notes-input {
+    color: #ffffff;
+    background: #1d2226;
+    border-color: #38434f;
+  }
+
+  .affinity-notes-input:focus {
+    border-color: #70b5f9;
+    box-shadow: 0 0 0 3px rgba(112, 181, 249, 0.2);
+  }
+
+  .affinity-notes-input::placeholder {
+    color: #666;
+  }
+
+  /* Footer */
+  .affinity-modal-footer {
+    border-top-color: #38434f;
+  }
+
+  .affinity-btn-primary {
+    background: linear-gradient(135deg, #70b5f9 0%, #378fe9 100%);
+    color: #1d2226;
+  }
+
+  .affinity-btn-primary:hover {
+    background: linear-gradient(135deg, #378fe9 0%, #0a66c2 100%);
+  }
+
+  .affinity-btn-secondary {
+    background: #283038;
+    color: #ffffff;
+    border-color: #38434f;
+  }
+
+  .affinity-btn-secondary:hover {
+    background: #38434f;
+  }
+
+  /* Feedback states */
+  .affinity-feedback-success {
+    background: #1c3829 !important;
+    color: #30d158 !important;
+  }
+
+  .affinity-feedback-warning {
+    background: #3d3520 !important;
+    color: #ffd60a !important;
+  }
+
+  .affinity-feedback-error {
+    background: #3c1f1f !important;
+    color: #ff453a !important;
+  }
+
+  /* Celebration */
+  .affinity-celebration-text {
+    color: #ffffff;
+  }
+
+  .affinity-view-link {
+    color: #70b5f9;
+    background: #283038;
+  }
+
+  .affinity-view-link:hover {
+    background: #70b5f9;
+    color: #1d2226;
+  }
+
+  /* Follow-up section */
+  .affinity-followup-section {
+    border-top-color: #38434f;
+  }
+
+  .affinity-followup-label {
+    color: #b0b7bd;
+  }
+
+  .affinity-followup-btn {
+    color: #ffffff;
+    background: #283038;
+    border-color: #38434f;
+  }
+
+  .affinity-followup-btn:hover {
+    background: #38434f;
+    border-color: #70b5f9;
+  }
+
+  .affinity-followup-btn.selected {
+    background: #30d158;
+    border-color: #30d158;
+    color: #1d2226;
+  }
+
+  .affinity-followup-skip {
+    color: #666;
+  }
 }

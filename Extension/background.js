@@ -6,6 +6,69 @@ const browserAPI = typeof browser !== 'undefined' ? browser : chrome;
 
 const AFFINITY_API_BASE = 'https://api.affinity.co';
 
+// ============================================================================
+// Badge Counter Functions
+// ============================================================================
+
+/**
+ * Update the extension badge with today's sync count
+ */
+async function updateBadgeCount() {
+  try {
+    const today = toLocalDateString(new Date());
+    const result = await browserAPI.storage.local.get(['dailySyncCount', 'dailySyncDate']);
+
+    let count = 0;
+    if (result.dailySyncDate === today) {
+      count = result.dailySyncCount || 0;
+    }
+
+    // Update badge
+    const badgeText = count > 0 ? String(count) : '';
+    if (browserAPI.action) {
+      // Manifest V3
+      browserAPI.action.setBadgeText({ text: badgeText });
+      browserAPI.action.setBadgeBackgroundColor({ color: '#0a66c2' });
+    } else if (browserAPI.browserAction) {
+      // Manifest V2 / Safari
+      browserAPI.browserAction.setBadgeText({ text: badgeText });
+      browserAPI.browserAction.setBadgeBackgroundColor({ color: '#0a66c2' });
+    }
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error updating badge:', error);
+  }
+}
+
+/**
+ * Increment today's sync count and update badge
+ */
+async function incrementSyncCount() {
+  try {
+    const today = toLocalDateString(new Date());
+    const result = await browserAPI.storage.local.get(['dailySyncCount', 'dailySyncDate', 'syncCount']);
+
+    let dailyCount = 0;
+    if (result.dailySyncDate === today) {
+      dailyCount = result.dailySyncCount || 0;
+    }
+    dailyCount++;
+
+    // Also update total count
+    const totalCount = (result.syncCount || 0) + 1;
+
+    await browserAPI.storage.local.set({
+      dailySyncCount: dailyCount,
+      dailySyncDate: today,
+      syncCount: totalCount
+    });
+
+    await updateBadgeCount();
+    console.log('[LinkedIn to Affinity] Sync count updated - today:', dailyCount, 'total:', totalCount);
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Error incrementing sync count:', error);
+  }
+}
+
 /**
  * Convert a Date to local YYYY-MM-DD string (not UTC)
  * This fixes timezone issues where toISOString() returns next day in UTC
@@ -1741,6 +1804,11 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
     await populatePersonFields(personId, conversationData.sender || {}, false, tags);
   }
 
+  // Update badge count on successful sync
+  if (results.notesCreated > 0 || results.notesUpdated > 0) {
+    await incrementSyncCount();
+  }
+
   return {
     success: true,
     personId: personId,
@@ -1803,6 +1871,9 @@ async function createPersonAndSend(senderData, conversationData, tags = []) {
       console.log('[LinkedIn to Affinity] Added note for day', dayKey, ':', note.id, 'with', dayMessages.length, 'messages');
     }
   }
+
+  // Update badge count on successful sync
+  await incrementSyncCount();
 
   return {
     success: true,
@@ -2004,7 +2075,13 @@ async function getDashboardData() {
         );
 
         if (stageField && stageField.dropdown_options) {
-          // Count entries by stage
+          // Build option ID to name mapping
+          const optionIdToName = new Map();
+          for (const opt of stageField.dropdown_options) {
+            optionIdToName.set(opt.id, opt.text);
+          }
+
+          // Count entries by stage using field values
           const stageCounts = new Map();
 
           // Initialize all stages with 0
@@ -2012,17 +2089,47 @@ async function getDashboardData() {
             stageCounts.set(opt.text, 0);
           }
 
-          // Count entries (would need field values - simplified for now)
-          // For MVP, we'll show the stages with placeholder counts
+          // Get field values for entries and count by stage
+          if (entries && entries.length > 0) {
+            // Fetch field values for all entries (batch if needed)
+            try {
+              const fieldValuesResponse = await affinityRequest(
+                `/field-values?list_entry_id=${entries.map(e => e.id).join(',')}`
+              );
+              const fieldValues = fieldValuesResponse || [];
+
+              // Count entries by stage field value
+              for (const fv of fieldValues) {
+                if (fv.field_id === stageField.id && fv.value) {
+                  const stageName = optionIdToName.get(fv.value);
+                  if (stageName) {
+                    stageCounts.set(stageName, (stageCounts.get(stageName) || 0) + 1);
+                  }
+                }
+              }
+            } catch (fieldError) {
+              console.log('[LinkedIn to Affinity] Could not fetch field values, using entry count:', fieldError.message);
+              // Fallback: just show total entries
+              if (stageField.dropdown_options.length > 0) {
+                stageCounts.set(stageField.dropdown_options[0].text, entries.length);
+              }
+            }
+          }
+
+          // Build stages array with actual counts
           const stages = stageField.dropdown_options.map(opt => ({
             name: opt.text,
-            count: stageCounts.get(opt.text) || Math.floor(Math.random() * 5) // Placeholder
+            count: stageCounts.get(opt.text) || 0
           }));
 
+          // Only include stages that have entries or show all if none have entries
+          const hasAnyCounts = stages.some(s => s.count > 0);
           pipeline = {
             listName: pipelineList.name,
             listId: pipelineList.id,
-            stages: stages.filter(s => s.count > 0 || true).slice(0, 6) // Show up to 6 stages
+            stages: hasAnyCounts
+              ? stages.filter(s => s.count > 0).slice(0, 6)
+              : stages.slice(0, 6)
           };
         }
       } catch (error) {
@@ -2207,6 +2314,9 @@ if (browserAPI.commands && browserAPI.commands.onCommand) {
 }
 
 console.log('[LinkedIn to Affinity] Background service worker loaded');
+
+// Initialize badge count on load
+updateBadgeCount();
 
 // Export for testing (Node.js/Jest environment)
 if (typeof module !== 'undefined' && module.exports) {

@@ -1291,9 +1291,85 @@ function _isConversationItem(element) {
   let activeButton = null;
 
   /**
+   * Extract email addresses from messages
+   */
+  function extractEmailsFromMessages(messages) {
+    const emails = new Set();
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+    if (messages && messages.length > 0) {
+      for (const msg of messages) {
+        if (msg.content) {
+          const matches = msg.content.match(emailRegex);
+          if (matches) {
+            matches.forEach(email => emails.add(email.toLowerCase()));
+          }
+        }
+      }
+    }
+
+    return Array.from(emails);
+  }
+
+  /**
+   * Extract phone numbers from messages
+   */
+  function extractPhonesFromMessages(messages) {
+    const phones = new Set();
+    // Match common phone formats
+    const phoneRegex = /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}|\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g;
+
+    if (messages && messages.length > 0) {
+      for (const msg of messages) {
+        if (msg.content) {
+          const matches = msg.content.match(phoneRegex);
+          if (matches) {
+            matches.forEach(phone => {
+              // Normalize and filter out unlikely numbers
+              const cleaned = phone.replace(/[-.\s()]/g, '');
+              if (cleaned.length >= 10 && cleaned.length <= 15) {
+                phones.add(phone.trim());
+              }
+            });
+          }
+        }
+      }
+    }
+
+    return Array.from(phones);
+  }
+
+  /**
+   * Extract meeting links from messages
+   */
+  function extractMeetingLinksFromMessages(messages) {
+    const links = [];
+    // Match common meeting/scheduling URLs
+    const meetingRegex = /(https?:\/\/)?(?:www\.)?(calendly\.com|cal\.com|zoom\.us|meet\.google\.com|teams\.microsoft\.com|whereby\.com|doodle\.com|chili(?:piper)?\.com|hubspot\.com\/meetings|savvycal\.com)[^\s)>\]"]*/gi;
+
+    if (messages && messages.length > 0) {
+      for (const msg of messages) {
+        if (msg.content) {
+          const matches = msg.content.match(meetingRegex);
+          if (matches) {
+            matches.forEach(link => {
+              const normalizedLink = link.startsWith('http') ? link : `https://${link}`;
+              if (!links.includes(normalizedLink)) {
+                links.push(normalizedLink);
+              }
+            });
+          }
+        }
+      }
+    }
+
+    return links;
+  }
+
+  /**
    * Create a preview card showing the contact data that will be synced
    */
-  function createPreviewCard(sender) {
+  function createPreviewCard(sender, detectedInfo = null) {
     const card = document.createElement('div');
     card.className = 'affinity-preview-card';
 
@@ -1339,6 +1415,20 @@ function _isConversationItem(element) {
       cardHTML += `<div class="affinity-preview-row affinity-preview-linkedin"><span class="affinity-preview-icon">🔗</span><span>LinkedIn profile linked</span></div>`;
     }
 
+    // Show detected contact info from messages
+    if (detectedInfo) {
+      if (detectedInfo.emails && detectedInfo.emails.length > 0) {
+        cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📧</span><span>${escapeHtml(detectedInfo.emails[0])}${detectedInfo.emails.length > 1 ? ` +${detectedInfo.emails.length - 1} more` : ''}</span></div>`;
+      }
+      if (detectedInfo.phones && detectedInfo.phones.length > 0) {
+        cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📱</span><span>${escapeHtml(detectedInfo.phones[0])}</span></div>`;
+      }
+      if (detectedInfo.meetingLinks && detectedInfo.meetingLinks.length > 0) {
+        const linkDomain = new URL(detectedInfo.meetingLinks[0]).hostname.replace('www.', '');
+        cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📅</span><span>Meeting link detected (${escapeHtml(linkDomain)})</span></div>`;
+      }
+    }
+
     cardHTML += `</div>`;
     card.innerHTML = cardHTML;
 
@@ -1363,6 +1453,16 @@ function _isConversationItem(element) {
     const sender = conversationData.sender || {};
     const senderName = sender.name || 'Unknown';
     const hasMatches = matches && matches.length > 0;
+
+    // Extract contact info from messages
+    const detectedInfo = {
+      emails: extractEmailsFromMessages(conversationData.messages),
+      phones: extractPhonesFromMessages(conversationData.messages),
+      meetingLinks: extractMeetingLinksFromMessages(conversationData.messages)
+    };
+
+    // Store detected info in conversation data for later use
+    conversationData.detectedInfo = detectedInfo;
 
     // Header
     const header = document.createElement('div');
@@ -1413,7 +1513,7 @@ function _isConversationItem(element) {
       });
     } else {
       // No matches - show preview card of what will be created
-      const previewCard = createPreviewCard(sender);
+      const previewCard = createPreviewCard(sender, detectedInfo);
       list.appendChild(previewCard);
     }
 
@@ -1438,6 +1538,9 @@ function _isConversationItem(element) {
       });
     });
 
+    // Pre-select previously used tags for this contact
+    loadSavedTagsForContact(sender.linkedinUrl || sender.name, tagsSection);
+
     // Quick notes input
     const notesSection = document.createElement('div');
     notesSection.className = 'affinity-notes-section';
@@ -1455,14 +1558,16 @@ function _isConversationItem(element) {
     const footer = document.createElement('div');
     footer.className = 'affinity-modal-footer';
     if (hasMatches) {
-      // When matches exist, only show Cancel - user must select an existing contact
+      // When matches exist, only show Cancel and Copy - user must select an existing contact
       footer.innerHTML = `
         <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
+        <button class="affinity-btn-secondary affinity-modal-copy" title="Copy conversation to clipboard">📋 Copy</button>
       `;
     } else {
-      // No matches - show Create Contact button
+      // No matches - show Create Contact and Copy buttons
       footer.innerHTML = `
         <button class="affinity-btn-secondary affinity-modal-cancel">Cancel</button>
+        <button class="affinity-btn-secondary affinity-modal-copy" title="Copy conversation to clipboard">📋 Copy</button>
         <button class="affinity-btn-primary affinity-modal-create-new">Create Contact</button>
       `;
     }
@@ -1487,6 +1592,16 @@ function _isConversationItem(element) {
         const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
         const tags = getSelectedTags();
         handleCreateNewContact(conversationData, quickNote, tags);
+      });
+    }
+
+    // Copy to clipboard listener
+    const copyBtn = footer.querySelector('.affinity-modal-copy');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        const quickNote = document.getElementById('affinity-quick-note')?.value?.trim() || '';
+        const tags = getSelectedTags();
+        copyConversationToClipboard(conversationData, quickNote, tags, copyBtn);
       });
     }
 
@@ -1533,6 +1648,144 @@ function _isConversationItem(element) {
       selectedTags.push(tag.dataset.tag);
     });
     return selectedTags;
+  }
+
+  /**
+   * Generate a storage key for a contact's tags
+   */
+  function getContactTagKey(contactIdentifier) {
+    if (!contactIdentifier) return null;
+    // Normalize the identifier (remove trailing slashes, lowercase)
+    const normalized = contactIdentifier.toLowerCase().replace(/\/+$/, '');
+    return `contact_tags_${normalized}`;
+  }
+
+  /**
+   * Save tags for a contact to storage
+   */
+  async function saveTagsForContact(contactIdentifier, tags) {
+    if (!contactIdentifier || !tags || tags.length === 0) return;
+
+    const key = getContactTagKey(contactIdentifier);
+    if (!key) return;
+
+    try {
+      const data = {};
+      data[key] = tags;
+      await browserAPI.storage.local.set(data);
+      console.log('[LinkedIn to Affinity] Saved tags for contact:', contactIdentifier, tags);
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error saving tags:', error);
+    }
+  }
+
+  /**
+   * Load and pre-select saved tags for a contact
+   */
+  async function loadSavedTagsForContact(contactIdentifier, tagsSection) {
+    if (!contactIdentifier) return;
+
+    const key = getContactTagKey(contactIdentifier);
+    if (!key) return;
+
+    try {
+      const result = await browserAPI.storage.local.get([key]);
+      const savedTags = result[key];
+
+      if (savedTags && savedTags.length > 0) {
+        console.log('[LinkedIn to Affinity] Loaded saved tags:', savedTags);
+
+        // Pre-select the tags
+        savedTags.forEach(tagName => {
+          const tagBtn = tagsSection.querySelector(`.affinity-tag[data-tag="${tagName}"]`);
+          if (tagBtn) {
+            tagBtn.classList.add('selected');
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error loading tags:', error);
+    }
+  }
+
+  /**
+   * Format conversation for clipboard (markdown format)
+   */
+  function formatConversationForClipboard(data, quickNote, tags) {
+    const { sender, messages, conversationUrl, capturedAt } = data;
+    const senderName = sender?.name || 'Unknown';
+    const capturedDate = new Date(capturedAt);
+    const dateStr = _toLocalDateString(capturedDate);
+
+    let text = `# LinkedIn Conversation with ${senderName}\n\n`;
+    text += `**Date:** ${dateStr}\n`;
+    text += `**URL:** ${conversationUrl}\n`;
+
+    if (tags && tags.length > 0) {
+      text += `**Tags:** ${tags.join(', ')}\n`;
+    }
+
+    if (quickNote) {
+      text += `\n> ${quickNote}\n`;
+    }
+
+    text += `\n---\n\n`;
+
+    if (messages && messages.length > 0) {
+      messages.forEach((msg) => {
+        const msgSender = msg.sender || (msg.isIncoming ? senderName : 'You');
+        const msgDate = msg.date || dateStr;
+        const timePart = msg.timestampDisplay || '';
+        const dateTimeStr = timePart ? `${msgDate} ${timePart}` : msgDate;
+
+        text += `**${msgSender}** (${dateTimeStr}):\n`;
+        text += `${msg.content || ''}\n\n`;
+      });
+    } else {
+      text += `_No messages extracted_\n`;
+    }
+
+    return text;
+  }
+
+  /**
+   * Copy conversation to clipboard
+   */
+  async function copyConversationToClipboard(conversationData, quickNote, tags, button) {
+    const originalText = button.textContent;
+
+    try {
+      const text = formatConversationForClipboard(conversationData, quickNote, tags);
+
+      await navigator.clipboard.writeText(text);
+
+      // Show success feedback
+      button.textContent = '✓ Copied!';
+      button.style.background = '#34c759';
+      button.style.borderColor = '#34c759';
+      button.style.color = '#ffffff';
+
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.background = '';
+        button.style.borderColor = '';
+        button.style.color = '';
+      }, 2000);
+
+    } catch (error) {
+      console.error('[LinkedIn to Affinity] Error copying to clipboard:', error);
+      button.textContent = '✗ Failed';
+      button.style.background = '#ff3b30';
+      button.style.borderColor = '#ff3b30';
+      button.style.color = '#ffffff';
+
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.background = '';
+        button.style.borderColor = '';
+        button.style.color = '';
+      }, 2000);
+    }
   }
 
   /**
@@ -1808,6 +2061,11 @@ function _isConversationItem(element) {
       if (response.success) {
         // Increment stats counter
         incrementSyncCount();
+        // Save tags for this contact for future use
+        const contactId = conversationData.sender?.linkedinUrl || conversationData.sender?.name;
+        if (tags && tags.length > 0) {
+          saveTagsForContact(contactId, tags);
+        }
         // Get the subdomain for the View in Affinity link
         const subdomain = await getAffinitySubdomain();
         // Show success feedback on modal
@@ -1891,6 +2149,11 @@ function _isConversationItem(element) {
       if (response.success) {
         // Increment stats counter
         incrementSyncCount();
+        // Save tags for this contact for future use
+        const contactId = conversationData.sender?.linkedinUrl || conversationData.sender?.name;
+        if (tags && tags.length > 0) {
+          saveTagsForContact(contactId, tags);
+        }
         // Get the subdomain for the View in Affinity link
         const subdomain = await getAffinitySubdomain();
         // Show success feedback on modal

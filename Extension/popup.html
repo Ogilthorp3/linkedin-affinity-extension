@@ -499,6 +499,207 @@
       color: #ff3b30;
       font-size: 13px;
     }
+
+    /* Dark Mode Support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1c1c1e;
+        color: #f5f5f7;
+      }
+
+      .header {
+        border-bottom-color: #38383a;
+      }
+
+      .header p {
+        color: #98989f;
+      }
+
+      label {
+        color: #f5f5f7;
+      }
+
+      input[type="password"],
+      input[type="text"] {
+        background: #2c2c2e;
+        border-color: #38383a;
+        color: #f5f5f7;
+      }
+
+      input::placeholder {
+        color: #636366;
+      }
+
+      input:focus {
+        border-color: #0a84ff;
+        box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.2);
+      }
+
+      .subdomain-suffix {
+        background: #2c2c2e;
+        border-color: #38383a;
+        color: #98989f;
+      }
+
+      .field-hint {
+        color: #98989f;
+      }
+
+      .btn-primary {
+        background: #0a84ff;
+      }
+
+      .btn-primary:hover {
+        background: #0077ed;
+      }
+
+      .btn-secondary {
+        background: #2c2c2e;
+        color: #f5f5f7;
+      }
+
+      .btn-secondary:hover {
+        background: #38383a;
+      }
+
+      .status.success {
+        background: #1c3829;
+        color: #30d158;
+      }
+
+      .status.error {
+        background: #3c1f1f;
+        color: #ff453a;
+      }
+
+      .status.info {
+        background: #1c2d3c;
+        color: #64d2ff;
+      }
+
+      .connection-status {
+        background: #2c2c2e;
+      }
+
+      .connection-dot {
+        background: #636366;
+      }
+
+      .connection-dot.connected {
+        background: #30d158;
+      }
+
+      .connection-dot.error {
+        background: #ff453a;
+      }
+
+      .help-text {
+        border-top-color: #38383a;
+        color: #98989f;
+      }
+
+      .help-text a {
+        color: #0a84ff;
+      }
+
+      kbd {
+        background: #2c2c2e;
+        border-color: #38383a;
+      }
+
+      /* Tab Navigation - Dark */
+      .tab-bar {
+        background: #2c2c2e;
+      }
+
+      .tab-btn {
+        color: #98989f;
+      }
+
+      .tab-btn:hover {
+        color: #f5f5f7;
+      }
+
+      .tab-btn.active {
+        background: #3a3a3c;
+        color: #f5f5f7;
+      }
+
+      /* Dashboard - Dark */
+      .section-title {
+        color: #98989f;
+      }
+
+      .stat-card {
+        background: #2c2c2e;
+      }
+
+      .stat-value {
+        color: #f5f5f7;
+      }
+
+      .stat-label {
+        color: #98989f;
+      }
+
+      .pipeline-name {
+        color: #f5f5f7;
+      }
+
+      .pipeline-bar-container {
+        background: #38383a;
+      }
+
+      .pipeline-count {
+        color: #f5f5f7;
+      }
+
+      .activity-item {
+        border-bottom-color: #2c2c2e;
+      }
+
+      .activity-icon {
+        background: #2c2c2e;
+      }
+
+      .activity-title {
+        color: #f5f5f7;
+      }
+
+      .activity-meta {
+        color: #98989f;
+      }
+
+      .followup-content {
+        color: #f5f5f7;
+      }
+
+      .followup-date {
+        color: #98989f;
+      }
+
+      .dashboard-section {
+        border-bottom-color: #38383a;
+      }
+
+      .dashboard-loading {
+        color: #98989f;
+      }
+
+      .dashboard-loading .spinner {
+        border-color: #38383a;
+        border-top-color: #0a84ff;
+      }
+
+      .dashboard-empty {
+        color: #98989f;
+      }
+
+      .dashboard-error {
+        background: #3c1f1f;
+        color: #ff453a;
+      }
+    }
   </style>
 </head>
 <body>
