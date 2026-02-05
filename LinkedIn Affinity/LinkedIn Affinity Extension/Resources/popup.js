@@ -254,6 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
     listEl.style.display = 'block';
     emptyEl.style.display = 'none';
 
+    // Get subdomain for Affinity links
+    const subdomain = subdomainInput.value.trim() || 'app';
+
     // Find max count for bar scaling
     const maxCount = Math.max(...lists.map(l => l.count), 1);
 
@@ -261,13 +264,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const item = document.createElement('li');
       item.className = 'pipeline-item';
       const barWidth = (list.count / maxCount) * 100;
+      const listUrl = `https://${subdomain}.affinity.co/lists/${list.id}`;
       item.innerHTML = `
-        <span class="pipeline-icon">${list.icon || '📋'}</span>
-        <span class="pipeline-name">${escapeHtml(list.name)}</span>
-        <div class="pipeline-bar-container">
-          <div class="pipeline-bar" style="width: ${barWidth}%"></div>
-        </div>
-        <span class="pipeline-count">${list.count}</span>
+        <a href="${listUrl}" target="_blank" class="pipeline-link" title="Open in Affinity">
+          <span class="pipeline-icon">${list.icon || '📋'}</span>
+          <span class="pipeline-name">${escapeHtml(list.name)}</span>
+          <div class="pipeline-bar-container">
+            <div class="pipeline-bar" style="width: ${barWidth}%"></div>
+          </div>
+          <span class="pipeline-count">${list.count}</span>
+        </a>
       `;
       listEl.appendChild(item);
     });
