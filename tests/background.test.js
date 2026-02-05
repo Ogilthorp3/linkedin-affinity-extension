@@ -834,10 +834,10 @@ describe('addNote', () => {
     setupApiKey('test-key');
   });
 
-  test('adds note with person ID and content', async () => {
+  test('adds note with person ID and content (includeFooter=false)', async () => {
     mockFetchResponse({ id: 'note-123' });
 
-    const result = await addNote(456, '## Test Note\n\nContent here');
+    const result = await addNote(456, '## Test Note\n\nContent here', false);
 
     expect(result.id).toBe('note-123');
     expect(global.fetch).toHaveBeenCalledWith(
@@ -850,6 +850,29 @@ describe('addNote', () => {
         })
       })
     );
+  });
+
+  test('adds note with syncer footer when includeFooter=true', async () => {
+    // First call: getCurrentUser() calls /whoami
+    mockFetchResponse({
+      grant: {
+        first_name: 'Test',
+        last_name: 'User'
+      }
+    });
+    // Second call: addNote() creates the note
+    mockFetchResponse({ id: 'note-456' });
+
+    const result = await addNote(789, 'Note content', true);
+
+    expect(result.id).toBe('note-456');
+    // Verify the note content includes the syncer footer
+    const calls = global.fetch.mock.calls;
+    const noteCall = calls.find(c => c[0].includes('/notes'));
+    expect(noteCall).toBeDefined();
+    const body = JSON.parse(noteCall[1].body);
+    expect(body.content).toContain('Note content');
+    expect(body.content).toContain('_Synced by Test U._');
   });
 });
 
