@@ -70,10 +70,6 @@ function _isConversationSelected(item) {
     return true;
   }
 
-  if (item.getAttribute('tabindex') === '0') {
-    return true;
-  }
-
   return false;
 }
 
@@ -126,8 +122,8 @@ function _extractName(element) {
     const nameEl = element.querySelector(selector);
     if (nameEl) {
       const text = nameEl.textContent.trim();
-      // Validate it looks like a name (1-5 words, starts with capital)
-      if (text && /^[A-Z][a-zA-Z\s\-\.\']{1,50}$/.test(text)) {
+      // Validate it looks like a name (1-5 words, starts with capital letter including Unicode)
+      if (text && /^[A-Z\u00C0-\u00D6\u00D8-\u00DE\u0100-\u024E][a-zA-Z\u00C0-\u024F\s\-\.\']{1,50}$/.test(text)) {
         return text;
       }
     }
@@ -138,7 +134,7 @@ function _extractName(element) {
   for (const text of texts) {
     const trimmed = text.trim();
     const words = trimmed.split(/\s+/);
-    if (words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(trimmed) && trimmed.length < 50) {
+    if (words.length >= 1 && words.length <= 5 && /^[A-Z\u00C0-\u00D6\u00D8-\u00DE\u0100-\u024E]/.test(trimmed) && trimmed.length < 50) {
       // Exclude common non-name patterns
       if (!/^(You|Me|Today|Yesterday|New|Message|Chat|Conversation|Messaging|Focused|Other|Inbox)/i.test(trimmed)) {
         return trimmed;
@@ -163,7 +159,7 @@ function _isConversationItem(element) {
   const textNodes = _getTextNodes(element);
   const hasName = textNodes.some(text => {
     const words = text.trim().split(/\s+/);
-    return words.length >= 1 && words.length <= 5 && /^[A-Z]/.test(text.trim());
+    return words.length >= 1 && words.length <= 5 && /^[A-Z\u00C0-\u00D6\u00D8-\u00DE\u0100-\u024E]/.test(text.trim());
   });
 
   // Should be a list item or have list-item-like behavior
@@ -1762,8 +1758,12 @@ function _isConversationItem(element) {
         cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📱</span><span>${escapeHtml(detectedInfo.phones[0])}</span></div>`;
       }
       if (detectedInfo.meetingLinks && detectedInfo.meetingLinks.length > 0) {
-        const linkDomain = new URL(detectedInfo.meetingLinks[0]).hostname.replace('www.', '');
-        cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📅</span><span>Meeting link detected (${escapeHtml(linkDomain)})</span></div>`;
+        try {
+          const linkDomain = new URL(detectedInfo.meetingLinks[0]).hostname.replace('www.', '');
+          cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📅</span><span>Meeting link detected (${escapeHtml(linkDomain)})</span></div>`;
+        } catch (e) {
+          cardHTML += `<div class="affinity-preview-row affinity-detected-info"><span class="affinity-preview-icon">📅</span><span>Meeting link detected</span></div>`;
+        }
       }
     }
 
@@ -2551,8 +2551,7 @@ function _isConversationItem(element) {
       });
 
       if (response.success) {
-        // Increment stats counter
-        incrementSyncCount();
+        // Note: sync count is already incremented by background.js
         // Get the subdomain for the View in Affinity link
         const subdomain = await getAffinitySubdomain();
         if (modalOverlay) {
@@ -2622,8 +2621,7 @@ function _isConversationItem(element) {
             console.log('[LinkedIn to Affinity] Could not add to list:', listError);
           }
         }
-        // Increment stats counter
-        incrementSyncCount();
+        // Note: sync count is already incremented by background.js
         // Save tags and sync time for this contact
         const contactId = conversationData.sender?.linkedinUrl || conversationData.sender?.name;
         if (tags && tags.length > 0) {
@@ -2720,8 +2718,7 @@ function _isConversationItem(element) {
             console.log('[LinkedIn to Affinity] Could not add to list:', listError);
           }
         }
-        // Increment stats counter
-        incrementSyncCount();
+        // Note: sync count is already incremented by background.js
         // Save tags and sync time for this contact
         const contactId = conversationData.sender?.linkedinUrl || conversationData.sender?.name;
         if (tags && tags.length > 0) {
