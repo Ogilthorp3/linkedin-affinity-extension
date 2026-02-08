@@ -2208,22 +2208,27 @@ async function refreshDashboardCache() {
  * Returns: { data, isStale }
  */
 async function getDashboardData() {
+  const startTime = performance.now ? performance.now() : Date.now();
   const now = Date.now();
   const cacheAge = now - dashboardDataCacheTime;
 
   if (dashboardDataCache && cacheAge < DASHBOARD_CACHE_TTL) {
-    console.log('[LinkedIn to Affinity] Dashboard cache hit (age: ' + Math.round(cacheAge / 1000) + 's)');
+    const elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+    console.log(`[LinkedIn to Affinity] Dashboard cache hit (age: ${Math.round(cacheAge / 1000)}s, ${elapsed.toFixed(1)}ms)`);
     return { data: dashboardDataCache, isStale: false };
   }
 
   if (dashboardDataCache) {
-    console.log('[LinkedIn to Affinity] Dashboard cache stale (age: ' + Math.round(cacheAge / 1000) + 's), refreshing in background');
+    const elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+    console.log(`[LinkedIn to Affinity] Dashboard cache stale (age: ${Math.round(cacheAge / 1000)}s, ${elapsed.toFixed(1)}ms), refreshing in background`);
     refreshDashboardCache(); // fire-and-forget
     return { data: dashboardDataCache, isStale: true };
   }
 
   console.log('[LinkedIn to Affinity] Dashboard cache miss, fetching fresh data');
   const freshData = await refreshDashboardCache();
+  const elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+  console.log(`[LinkedIn to Affinity] Dashboard fresh fetch completed in ${elapsed.toFixed(1)}ms`);
   return { data: freshData, isStale: false };
 }
 
@@ -2231,6 +2236,7 @@ async function getDashboardData() {
  * Fetch fresh dashboard data from Affinity API endpoints (uncached)
  */
 async function getDashboardDataFresh() {
+  const freshStartTime = performance.now ? performance.now() : Date.now();
   const weekStart = getWeekStart();
 
   // Fetch data in parallel
@@ -2239,6 +2245,7 @@ async function getDashboardDataFresh() {
     getRecentNotes(weekStart),
     browserAPI.storage.local.get(['syncCount', 'weeklyNotesCount', 'weeklyContactsCount', 'weeklyStatsWeek'])
   ]);
+  const phase1Time = (performance.now ? performance.now() : Date.now()) - freshStartTime;
 
   // Get stored weekly stats (reset if it's a new week)
   const currentWeek = toLocalDateString(weekStart);
@@ -2371,6 +2378,9 @@ async function getDashboardDataFresh() {
 
   // Parse follow-ups from notes
   const followUps = parseFollowUpsFromNotes(notesThisWeek);
+
+  const totalTime = (performance.now ? performance.now() : Date.now()) - freshStartTime;
+  console.log(`[LinkedIn to Affinity] Dashboard fresh fetch: phase1=${phase1Time.toFixed(0)}ms, total=${totalTime.toFixed(0)}ms, lists=${lists.length}, notes=${recentNotes.length}`);
 
   return {
     weeklyStats,

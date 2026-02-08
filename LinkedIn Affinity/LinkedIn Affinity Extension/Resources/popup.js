@@ -174,6 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Dashboard functions
   function loadDashboard() {
+    const dashboardStartTime = performance.now();
     const loadingEl = document.getElementById('dashboard-loading');
     const contentEl = document.getElementById('dashboard-content');
     const errorEl = document.getElementById('dashboard-error');
@@ -185,9 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
       renderDashboard(dashboardCache);
       // If popup cache is still fresh, we're done
       if (Date.now() - dashboardCacheTime < CACHE_DURATION) {
+        console.log(`[LinkedIn to Affinity] Dashboard rendered from popup cache in ${(performance.now() - dashboardStartTime).toFixed(1)}ms`);
         if (refreshIndicator) refreshIndicator.style.display = 'none';
         return;
       }
+      console.log(`[LinkedIn to Affinity] Dashboard rendered stale popup cache in ${(performance.now() - dashboardStartTime).toFixed(1)}ms, refreshing...`);
       // Popup cache is stale - show content but indicate refreshing
       if (refreshIndicator) refreshIndicator.style.display = 'block';
     } else {
@@ -224,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
           dashboardCache = response.data;
           dashboardCacheTime = Date.now();
           renderDashboard(response.data);
+          console.log(`[LinkedIn to Affinity] Dashboard rendered (stale=${response.isStale}) in ${(performance.now() - dashboardStartTime).toFixed(1)}ms`);
 
           // Phase 3: If background returned stale data, request fresh in background
           if (response.isStale) {
@@ -234,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 dashboardCache = freshResponse.data;
                 dashboardCacheTime = Date.now();
                 renderDashboard(freshResponse.data);
+                console.log(`[LinkedIn to Affinity] Dashboard refreshed with fresh data in ${(performance.now() - dashboardStartTime).toFixed(1)}ms`);
               }
             });
           } else {

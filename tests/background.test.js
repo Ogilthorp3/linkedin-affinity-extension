@@ -1405,3 +1405,105 @@ describe('Dashboard Caching', () => {
     expect(global.fetch.mock.calls.length).toBeGreaterThan(fetchCallCount);
   });
 });
+
+describe('Dashboard Performance Benchmark', () => {
+  function setupDashboardMocks() {
+    setupApiKey();
+    global.fetch.mockImplementation((url) => {
+      let response = {};
+      if (url.includes('/list-entries')) {
+        response = Array.from({ length: 50 }, (_, i) => ({ id: i + 1 }));
+      } else if (url.includes('/lists')) {
+        response = Array.from({ length: 8 }, (_, i) => ({
+          id: 100 + i, name: `List ${i + 1}`, type: i % 3 === 0 ? 8 : 0
+        }));
+      } else if (url.includes('/notes')) {
+        response = { notes: Array.from({ length: 20 }, (_, i) => ({
+          id: i + 1,
+          content: `**Person ${i}** note content with follow up mention`,
+          created_at: new Date(Date.now() - i * 3600000).toISOString()
+        }))};
+      } else if (url.includes('/fields')) {
+        response = [];
+      }
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: () => Promise.resolve(response),
+        text: () => Promise.resolve(JSON.stringify(response))
+      });
+    });
+  }
+
+  beforeEach(() => {
+    resetCaches();
+    setupDashboardMocks();
+  });
+
+  test('benchmark: cached vs fresh dashboard load', async () => {
+    // --- Fresh load (no cache) ---
+    const freshStart = performance.now();
+    const freshResult = await getDashboardData();
+    const freshTime = performance.now() - freshStart;
+    const freshApiCalls = global.fetch.mock.calls.length;
+
+    expect(freshResult.isStale).toBe(false);
+    expect(freshResult.data.lists.length).toBe(8);
+
+    // --- Cached load (within TTL) ---
+    const cachedStart = performance.now();
+    const cachedResult = await getDashboardData();
+    const cachedTime = performance.now() - cachedStart;
+    const cachedApiCalls = global.fetch.mock.calls.length - freshApiCalls;
+
+    expect(cachedResult.isStale).toBe(false);
+    expect(cachedApiCalls).toBe(0);
+
+    // --- Fresh load with list counts cached (reset dashboard but keep list counts) ---
+    // Simulate: dashboard cache expired but list counts still fresh
+    const realDateNow = Date.now;
+    let currentTime = realDateNow.call(Date);
+    Date.now = jest.fn(() => currentTime);
+
+    // Reset only the dashboard data cache by advancing past its TTL
+    currentTime += 2 * 60 * 1000 + 1;
+    global.fetch.mockClear();
+    setupDashboardMocks();
+
+    const partialStart = performance.now();
+    // This will return stale, triggering background refresh
+    const partialResult = await getDashboardData();
+    const partialTime = performance.now() - partialStart;
+
+    // Let the background refresh complete
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const partialApiCalls = global.fetch.mock.calls.length;
+
+    Date.now = realDateNow;
+
+    // --- Report ---
+    const report = [
+      '',
+      '╔══════════════════════════════════════════════════════╗',
+      '║         Dashboard Performance Benchmark             ║',
+      '╠══════════════════════════════════════════════════════╣',
+      `║ Fresh load (cold cache):                            ║`,
+      `║   Time: ${freshTime.toFixed(2).padStart(8)}ms | API calls: ${String(freshApiCalls).padStart(2)}            ║`,
+      `║ Cached load (warm cache):                           ║`,
+      `║   Time: ${cachedTime.toFixed(2).padStart(8)}ms | API calls: ${String(cachedApiCalls).padStart(2)}            ║`,
+      `║ Stale load (list counts cached):                    ║`,
+      `║   Time: ${partialTime.toFixed(2).padStart(8)}ms | API calls: ${String(partialApiCalls).padStart(2)}            ║`,
+      '╠══════════════════════════════════════════════════════╣',
+      `║ Speedup (cached vs fresh): ${(freshTime / Math.max(cachedTime, 0.01)).toFixed(0).padStart(5)}x                    ║`,
+      `║ API calls saved (cached):  ${String(freshApiCalls).padStart(5)}                    ║`,
+      `║ API calls saved (stale):   ${String(freshApiCalls - partialApiCalls).padStart(5)}                    ║`,
+      '╚══════════════════════════════════════════════════════╝',
+    ];
+    console.log(report.join('\n'));
+
+    // Assertions
+    expect(cachedTime).toBeLessThan(freshTime);
+    expect(cachedApiCalls).toBe(0);
+    // Stale path returns immediately (no API calls in the synchronous return)
+    expect(partialResult.isStale).toBe(true);
+  });
+});
