@@ -178,34 +178,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const contentEl = document.getElementById('dashboard-content');
     const errorEl = document.getElementById('dashboard-error');
     const notConnectedEl = document.getElementById('dashboard-not-connected');
+    const refreshIndicator = document.getElementById('dashboard-refresh-indicator');
 
-    // Check if we have cached data
-    if (dashboardCache && dashboardCacheTime && (Date.now() - dashboardCacheTime < CACHE_DURATION)) {
+    // Phase 1: If we have popup-level cached data, show it immediately (no spinner)
+    if (dashboardCache && dashboardCacheTime) {
       renderDashboard(dashboardCache);
-      return;
+      // If popup cache is still fresh, we're done
+      if (Date.now() - dashboardCacheTime < CACHE_DURATION) {
+        if (refreshIndicator) refreshIndicator.style.display = 'none';
+        return;
+      }
+      // Popup cache is stale - show content but indicate refreshing
+      if (refreshIndicator) refreshIndicator.style.display = 'block';
+    } else {
+      // No popup cache - show loading spinner
+      loadingEl.style.display = 'block';
+      contentEl.style.display = 'none';
+      errorEl.style.display = 'none';
+      notConnectedEl.style.display = 'none';
     }
-
-    // Show loading state
-    loadingEl.style.display = 'block';
-    contentEl.style.display = 'none';
-    errorEl.style.display = 'none';
-    notConnectedEl.style.display = 'none';
 
     // Check if API key is configured
     browserAPI.storage.sync.get(['affinityApiKey'], (result) => {
       if (!result.affinityApiKey) {
         loadingEl.style.display = 'none';
         notConnectedEl.style.display = 'block';
+        if (refreshIndicator) refreshIndicator.style.display = 'none';
         return;
       }
 
-      // Fetch dashboard data
+      // Phase 2: Request data from background (may return cached or fresh)
       browserAPI.runtime.sendMessage({ action: 'getDashboardData' }, (response) => {
         loadingEl.style.display = 'none';
 
         if (browserAPI.runtime.lastError) {
-          errorEl.style.display = 'block';
-          document.getElementById('dashboard-error-msg').textContent = browserAPI.runtime.lastError.message;
+          if (!dashboardCache) {
+            errorEl.style.display = 'block';
+            document.getElementById('dashboard-error-msg').textContent = browserAPI.runtime.lastError.message;
+          }
+          if (refreshIndicator) refreshIndicator.style.display = 'none';
           return;
         }
 
@@ -213,9 +224,27 @@ document.addEventListener('DOMContentLoaded', () => {
           dashboardCache = response.data;
           dashboardCacheTime = Date.now();
           renderDashboard(response.data);
+
+          // Phase 3: If background returned stale data, request fresh in background
+          if (response.isStale) {
+            if (refreshIndicator) refreshIndicator.style.display = 'block';
+            browserAPI.runtime.sendMessage({ action: 'getDashboardDataFresh' }, (freshResponse) => {
+              if (refreshIndicator) refreshIndicator.style.display = 'none';
+              if (freshResponse && freshResponse.success) {
+                dashboardCache = freshResponse.data;
+                dashboardCacheTime = Date.now();
+                renderDashboard(freshResponse.data);
+              }
+            });
+          } else {
+            if (refreshIndicator) refreshIndicator.style.display = 'none';
+          }
         } else {
-          errorEl.style.display = 'block';
-          document.getElementById('dashboard-error-msg').textContent = response?.error || 'Unknown error';
+          if (!dashboardCache) {
+            errorEl.style.display = 'block';
+            document.getElementById('dashboard-error-msg').textContent = response?.error || 'Unknown error';
+          }
+          if (refreshIndicator) refreshIndicator.style.display = 'none';
         }
       });
     });

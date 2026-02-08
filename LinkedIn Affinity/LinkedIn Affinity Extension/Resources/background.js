@@ -493,6 +493,23 @@ let fieldsCache = null;
  */
 let currentUserCache = null;
 
+// ============================================================================
+// Dashboard Caching
+// ============================================================================
+
+/** Full dashboard data cache */
+let dashboardDataCache = null;
+let dashboardDataCacheTime = 0;
+const DASHBOARD_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+/** List entry counts cache (counts change slowly) */
+let listCountsCache = {};
+let listCountsCacheTime = 0;
+const LIST_COUNTS_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+/** Flag to prevent concurrent refreshes */
+let dashboardRefreshInProgress = false;
+
 /**
  * Get current user info (cached)
  */
@@ -522,6 +539,10 @@ async function getCurrentUser() {
 function resetCaches() {
   fieldsCache = null;
   currentUserCache = null;
+  dashboardDataCache = null;
+  dashboardDataCacheTime = 0;
+  listCountsCache = {};
+  listCountsCacheTime = 0;
 }
 
 /**
@@ -1869,6 +1890,7 @@ async function sendToAffinityWithPerson(personId, conversationData, forceSend = 
   // Update badge count on successful sync
   if (results.notesCreated > 0 || results.notesUpdated > 0) {
     await incrementSyncCount();
+    refreshDashboardCache(); // Warm cache for next popup open
   }
 
   return {
@@ -1936,6 +1958,7 @@ async function createPersonAndSend(senderData, conversationData, tags = []) {
 
   // Update badge count on successful sync
   await incrementSyncCount();
+  refreshDashboardCache(); // Warm cache for next popup open
 
   return {
     success: true,
@@ -2158,9 +2181,56 @@ function parseFollowUpsFromNotes(notes) {
 }
 
 /**
- * Get dashboard data aggregated from various Affinity endpoints
+ * Refresh the dashboard cache. Safe to call concurrently (deduplicates).
+ */
+async function refreshDashboardCache() {
+  if (dashboardRefreshInProgress) {
+    return dashboardDataCache;
+  }
+
+  dashboardRefreshInProgress = true;
+  try {
+    const freshData = await getDashboardDataFresh();
+    dashboardDataCache = freshData;
+    dashboardDataCacheTime = Date.now();
+    console.log('[LinkedIn to Affinity] Dashboard cache refreshed');
+    return freshData;
+  } catch (error) {
+    console.error('[LinkedIn to Affinity] Dashboard cache refresh failed:', error);
+    return dashboardDataCache;
+  } finally {
+    dashboardRefreshInProgress = false;
+  }
+}
+
+/**
+ * Get dashboard data with stale-while-revalidate caching.
+ * Returns: { data, isStale }
  */
 async function getDashboardData() {
+  const now = Date.now();
+  const cacheAge = now - dashboardDataCacheTime;
+
+  if (dashboardDataCache && cacheAge < DASHBOARD_CACHE_TTL) {
+    console.log('[LinkedIn to Affinity] Dashboard cache hit (age: ' + Math.round(cacheAge / 1000) + 's)');
+    return { data: dashboardDataCache, isStale: false };
+  }
+
+  if (dashboardDataCache) {
+    console.log('[LinkedIn to Affinity] Dashboard cache stale (age: ' + Math.round(cacheAge / 1000) + 's), refreshing in background');
+    refreshDashboardCache(); // fire-and-forget
+    return { data: dashboardDataCache, isStale: true };
+  }
+
+  console.log('[LinkedIn to Affinity] Dashboard cache miss, fetching fresh data');
+  const freshData = await refreshDashboardCache();
+  return { data: freshData, isStale: false };
+}
+
+/**
+ * Fetch fresh dashboard data from Affinity API endpoints (uncached)
+ */
+async function getDashboardDataFresh() {
   const weekStart = getWeekStart();
 
   // Fetch data in parallel
@@ -2200,38 +2270,59 @@ async function getDashboardData() {
   const listsOverview = [];
 
   if (lists.length > 0) {
-    // Fetch entry counts for each list (in parallel for speed)
-    const listPromises = lists.slice(0, 8).map(async (list) => {
-      try {
-        const entries = await getListEntries(list.id);
-        return {
-          id: list.id,
-          name: list.name,
-          count: entries?.length || 0,
-          type: list.type // 0 = person, 1 = organization, 8 = opportunity
-        };
-      } catch (error) {
-        console.log('[LinkedIn to Affinity] Could not fetch list entries for:', list.name);
-        return {
-          id: list.id,
-          name: list.name,
-          count: 0,
-          type: list.type
-        };
-      }
-    });
+    const now = Date.now();
+    const listCountsFresh = (now - listCountsCacheTime) < LIST_COUNTS_CACHE_TTL;
+    let listResults;
 
-    const listResults = await Promise.all(listPromises);
+    if (listCountsFresh && Object.keys(listCountsCache).length > 0) {
+      // Use cached counts - skip all getListEntries API calls
+      console.log('[LinkedIn to Affinity] Using cached list counts (age: ' +
+        Math.round((now - listCountsCacheTime) / 1000) + 's)');
+      listResults = lists.slice(0, 8).map(list => ({
+        id: list.id,
+        name: list.name,
+        count: listCountsCache[list.id] ?? 0,
+        type: list.type
+      }));
+    } else {
+      // Fetch fresh counts from API (in parallel)
+      const listPromises = lists.slice(0, 8).map(async (list) => {
+        try {
+          const entries = await getListEntries(list.id);
+          return {
+            id: list.id,
+            name: list.name,
+            count: entries?.length || 0,
+            type: list.type
+          };
+        } catch (error) {
+          console.log('[LinkedIn to Affinity] Could not fetch list entries for:', list.name);
+          return {
+            id: list.id,
+            name: list.name,
+            count: listCountsCache[list.id] ?? 0,
+            type: list.type
+          };
+        }
+      });
+      listResults = await Promise.all(listPromises);
+
+      // Update list counts cache
+      const newCounts = {};
+      listResults.forEach(lr => { newCounts[lr.id] = lr.count; });
+      listCountsCache = newCounts;
+      listCountsCacheTime = Date.now();
+      console.log('[LinkedIn to Affinity] List counts cache updated');
+    }
 
     // Sort by count (most entries first), then add to overview
     listResults
       .sort((a, b) => b.count - a.count)
       .forEach(list => {
-        // Determine icon based on list type
         let icon = '📋';
-        if (list.type === 0) icon = '👤'; // Person list
-        else if (list.type === 1) icon = '🏢'; // Organization list
-        else if (list.type === 8) icon = '💼'; // Opportunity list
+        if (list.type === 0) icon = '👤';
+        else if (list.type === 1) icon = '🏢';
+        else if (list.type === 8) icon = '💼';
 
         listsOverview.push({
           id: list.id,
@@ -2382,14 +2473,28 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'getDashboardData') {
-    // Fetch dashboard data
+    // Return cached dashboard data (stale-while-revalidate)
     getDashboardData()
-      .then((data) => {
-        console.log('[LinkedIn to Affinity] getDashboardData result:', data);
-        sendResponse({ success: true, data });
+      .then((result) => {
+        console.log('[LinkedIn to Affinity] getDashboardData result, isStale:', result.isStale);
+        sendResponse({ success: true, data: result.data, isStale: result.isStale });
       })
       .catch((error) => {
         console.error('[LinkedIn to Affinity] getDashboardData error:', error);
+        sendResponse({ success: false, error: error.message || 'Unknown error' });
+      });
+
+    return true;
+  }
+
+  if (request.action === 'getDashboardDataFresh') {
+    // Force a fresh fetch (called by popup when it received stale data)
+    refreshDashboardCache()
+      .then((data) => {
+        sendResponse({ success: true, data, isStale: false });
+      })
+      .catch((error) => {
+        console.error('[LinkedIn to Affinity] getDashboardDataFresh error:', error);
         sendResponse({ success: false, error: error.message || 'Unknown error' });
       });
 
@@ -2419,6 +2524,12 @@ browserAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
     addPersonToList(request.personId, request.listId)
       .then((entry) => {
         console.log('[LinkedIn to Affinity] Added person to list:', entry);
+        // Optimistically increment cached list count
+        if (!entry.already_exists && listCountsCache[request.listId] !== undefined) {
+          listCountsCache[request.listId]++;
+        }
+        dashboardDataCache = null;
+        dashboardDataCacheTime = 0;
         sendResponse({ success: true, entry });
       })
       .catch((error) => {
@@ -2469,6 +2580,19 @@ console.log('[LinkedIn to Affinity] Background service worker loaded');
 // Initialize badge count on load
 updateBadgeCount();
 
+// Warm dashboard cache on startup (delayed to avoid competing with other init)
+setTimeout(async () => {
+  try {
+    const settings = await browserAPI.storage.sync.get(['affinityApiKey']);
+    if (settings.affinityApiKey) {
+      console.log('[LinkedIn to Affinity] Warming dashboard cache on startup');
+      await refreshDashboardCache();
+    }
+  } catch (e) {
+    console.log('[LinkedIn to Affinity] Cache warming skipped:', e.message);
+  }
+}, 3000);
+
 // ============================================================================
 // Follow-up Notifications
 // ============================================================================
@@ -2485,7 +2609,8 @@ async function checkFollowUpNotifications() {
     }
 
     // Get dashboard data which includes follow-ups
-    const dashboardData = await getDashboardData();
+    const result = await getDashboardData();
+    const dashboardData = result.data;
     if (!dashboardData || !dashboardData.followUps) {
       return;
     }
@@ -2535,18 +2660,30 @@ async function checkFollowUpNotifications() {
 if (browserAPI.alarms) {
   // Create alarm to check every 2 hours
   browserAPI.alarms.create('followUpCheck', {
-    periodInMinutes: 120 // Every 2 hours
+    periodInMinutes: 120
   });
 
-  // Handle alarm
+  // Create alarm to warm dashboard cache every 10 minutes
+  browserAPI.alarms.create('dashboardCacheWarm', {
+    periodInMinutes: 10
+  });
+
+  // Handle alarms
   browserAPI.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'followUpCheck') {
       checkFollowUpNotifications();
     }
+    if (alarm.name === 'dashboardCacheWarm') {
+      browserAPI.storage.sync.get(['affinityApiKey'], (result) => {
+        if (result.affinityApiKey) {
+          refreshDashboardCache();
+        }
+      });
+    }
   });
 
   // Also check on service worker startup
-  setTimeout(checkFollowUpNotifications, 10000); // Wait 10 seconds after startup
+  setTimeout(checkFollowUpNotifications, 10000);
 }
 
 // Handle notification clicks
@@ -2591,6 +2728,9 @@ if (typeof module !== 'undefined' && module.exports) {
     checkDuplicateAndGetExistingMessages,
     sendToAffinity,
     sendToAffinityWithPerson,
-    createPersonAndSend
+    createPersonAndSend,
+    getDashboardData,
+    getDashboardDataFresh,
+    refreshDashboardCache
   };
 }

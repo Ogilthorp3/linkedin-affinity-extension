@@ -548,6 +548,28 @@
       to { transform: rotate(360deg); }
     }
 
+    #dashboard-refresh-indicator {
+      position: relative;
+      height: 2px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+
+    .refresh-bar {
+      position: absolute;
+      top: 0;
+      left: -40%;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, #667eea, transparent);
+      animation: refreshSlide 1.2s ease-in-out infinite;
+    }
+
+    @keyframes refreshSlide {
+      0% { left: -40%; }
+      100% { left: 100%; }
+    }
+
     .dashboard-empty {
       text-align: center;
       padding: 30px 20px;
@@ -795,6 +817,10 @@
         border-top-color: #0a84ff;
       }
 
+      .refresh-bar {
+        background: linear-gradient(90deg, transparent, #0a84ff, transparent);
+      }
+
       .dashboard-empty {
         color: #98989f;
       }
@@ -897,6 +923,10 @@
     <div id="dashboard-loading" class="dashboard-loading">
       <div class="spinner"></div>
       <p>Loading dashboard...</p>
+    </div>
+
+    <div id="dashboard-refresh-indicator" style="display: none;">
+      <div class="refresh-bar"></div>
     </div>
 
     <div id="dashboard-content" style="display: none;">
