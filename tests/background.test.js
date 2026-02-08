@@ -16,7 +16,10 @@ const {
   findPersonFields,
   populatePersonFields,
   findDropdownOption,
-  resetCaches
+  resetCaches,
+  getDashboardData,
+  getDashboardDataFresh,
+  refreshDashboardCache
 } = require('../Extension/background.js');
 
 describe('formatConversationNote', () => {
@@ -1291,5 +1294,114 @@ describe('populatePersonFields', () => {
     const results = await populatePersonFields(123, {}, false);
 
     expect(results.length).toBe(0);
+  });
+});
+
+describe('Dashboard Caching', () => {
+  // Set up URL-based mocks for all dashboard API endpoints
+  function setupDashboardMocks() {
+    setupApiKey();
+    global.fetch.mockImplementation((url) => {
+      let response = {};
+      if (url.includes('/list-entries')) {
+        response = [{ id: 1 }, { id: 2 }, { id: 3 }];
+      } else if (url.includes('/lists')) {
+        response = [
+          { id: 100, name: 'Pipeline', type: 8 },
+          { id: 101, name: 'Contacts', type: 0 }
+        ];
+      } else if (url.includes('/notes')) {
+        response = { notes: [
+          { id: 1, content: '**Test** note', created_at: new Date().toISOString() }
+        ]};
+      } else if (url.includes('/fields')) {
+        response = [];
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(response),
+        text: () => Promise.resolve(JSON.stringify(response))
+      });
+    });
+  }
+
+  beforeEach(() => {
+    resetCaches();
+    setupDashboardMocks();
+  });
+
+  test('returns cached data without API calls on second call', async () => {
+    const result1 = await getDashboardData();
+    expect(result1.isStale).toBe(false);
+    expect(result1.data).toBeTruthy();
+    expect(result1.data.lists.length).toBe(2);
+
+    const fetchCallCount = global.fetch.mock.calls.length;
+
+    const result2 = await getDashboardData();
+    expect(result2.isStale).toBe(false);
+    expect(result2.data).toEqual(result1.data);
+
+    // No additional API calls should have been made
+    expect(global.fetch.mock.calls.length).toBe(fetchCallCount);
+  });
+
+  test('returns isStale true after cache TTL expires', async () => {
+    const realDateNow = Date.now;
+    let currentTime = realDateNow.call(Date);
+    Date.now = jest.fn(() => currentTime);
+
+    try {
+      const result1 = await getDashboardData();
+      expect(result1.isStale).toBe(false);
+
+      // Advance time past 2-minute TTL
+      currentTime += 2 * 60 * 1000 + 1;
+
+      const result2 = await getDashboardData();
+      expect(result2.isStale).toBe(true);
+      expect(result2.data).toBeTruthy();
+
+      // Let the fire-and-forget background refresh complete
+      await new Promise(resolve => setTimeout(resolve, 10));
+    } finally {
+      Date.now = realDateNow;
+    }
+  });
+
+  test('list counts cache skips getListEntries API calls on second fetch', async () => {
+    // First call fetches everything including list entries
+    await getDashboardDataFresh();
+
+    const listEntryCalls1 = global.fetch.mock.calls.filter(
+      c => c[0].includes('/list-entries')
+    );
+    expect(listEntryCalls1.length).toBe(2); // One per list
+
+    // Clear call history but keep the same mock implementation
+    global.fetch.mockClear();
+
+    // Second call should use cached list counts (within 15-min TTL)
+    await getDashboardDataFresh();
+
+    const listEntryCalls2 = global.fetch.mock.calls.filter(
+      c => c[0].includes('/list-entries')
+    );
+    expect(listEntryCalls2.length).toBe(0);
+  });
+
+  test('resetCaches clears dashboard caches', async () => {
+    // Populate cache
+    await getDashboardData();
+    const fetchCallCount = global.fetch.mock.calls.length;
+    expect(fetchCallCount).toBeGreaterThan(0);
+
+    // Clear all caches
+    resetCaches();
+
+    // Next call should make fresh API calls
+    await getDashboardData();
+    expect(global.fetch.mock.calls.length).toBeGreaterThan(fetchCallCount);
   });
 });
