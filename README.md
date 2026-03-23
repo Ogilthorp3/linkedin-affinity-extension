@@ -98,7 +98,7 @@ scripts/                   # Build automation
 
 ## License
 
-Proprietary. Internal use at Triptyq Capital and authorized partners only.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 

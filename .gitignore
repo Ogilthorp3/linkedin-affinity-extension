@@ -27,3 +27,6 @@ build/
 # Xcode user data
 xcuserdata/
 *.xcuserdatad/
+
+# Claude Code internal docs
+CLAUDE.md
