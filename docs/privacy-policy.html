@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - LinkedIn to Affinity</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.7;
+      color: #1d1d1f;
+      background: #fff;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .updated {
+      color: #6e6e73;
+      font-size: 0.95rem;
+      margin-bottom: 32px;
+    }
+    h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-top: 32px;
+      margin-bottom: 12px;
+    }
+    p { margin-bottom: 16px; }
+    ul, ol {
+      margin-bottom: 16px;
+      padding-left: 24px;
+    }
+    li { margin-bottom: 8px; }
+    strong { font-weight: 600; }
+    code {
+      background: #f5f5f7;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #d2d2d7;
+      margin: 32px 0 16px;
+    }
+    .footer {
+      color: #6e6e73;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Privacy Policy</h1>
+    <p class="updated">LinkedIn to Affinity &mdash; Last Updated: February 7, 2026</p>
+
+    <h2>Overview</h2>
+    <p>LinkedIn to Affinity (&ldquo;the Extension&rdquo;) is a browser extension that helps you capture LinkedIn conversations and sync them to your Affinity CRM account. Your privacy is important to us. This policy explains what data the Extension accesses and how it is handled.</p>
+
+    <h2>Data Collection</h2>
+    <p><strong>The Extension does not collect, store, or transmit any personal data to us or any third party.</strong></p>
+    <p>All data processing happens locally in your browser or is sent directly to the Affinity API using your own API credentials.</p>
+
+    <h2>What Data the Extension Accesses</h2>
+    <p>When you use the Extension on LinkedIn messaging pages, it accesses:</p>
+    <ul>
+      <li><strong>Conversation content</strong>: The text of the LinkedIn conversation you choose to sync, including participant names, message text, and timestamps</li>
+      <li><strong>Profile information</strong>: The name and LinkedIn profile URL of the person you are messaging</li>
+      <li><strong>Your Affinity API key</strong>: Stored locally in your browser&rsquo;s extension storage to authenticate with the Affinity API</li>
+    </ul>
+
+    <h2>How Data is Used</h2>
+    <ul>
+      <li><strong>Conversation data</strong> is sent directly from your browser to the Affinity API (<code>api.affinity.co</code>) to create or update contacts and add notes. This only happens when you explicitly click &ldquo;Send to Affinity&rdquo; or use the keyboard shortcut.</li>
+      <li><strong>Your API key</strong> is stored locally in your browser using the browser&rsquo;s built-in extension storage API. It is only used to authenticate requests to the Affinity API.</li>
+      <li><strong>Dashboard data</strong> (lists, notes, follow-ups) is fetched from the Affinity API and cached locally in your browser for performance. This cache is cleared when you close the browser.</li>
+    </ul>
+
+    <h2>Data Storage</h2>
+    <p>All data is stored locally in your browser:</p>
+    <ul>
+      <li><strong>API key and preferences</strong>: Stored in browser sync storage (syncs across your devices if you use browser sync)</li>
+      <li><strong>Sync statistics</strong>: Stored in browser local storage</li>
+      <li><strong>Dashboard cache</strong>: Stored in memory only, cleared when the browser closes</li>
+    </ul>
+    <p>No data is stored on any external server other than the Affinity API, which you connect to using your own account credentials.</p>
+
+    <h2>Third-Party Services</h2>
+    <p>The Extension communicates with exactly two external services:</p>
+    <ol>
+      <li><strong>LinkedIn</strong> (<code>www.linkedin.com</code>): The Extension reads conversation content from LinkedIn pages you visit. It does not write to or modify your LinkedIn account.</li>
+      <li><strong>Affinity CRM</strong> (<code>api.affinity.co</code>): The Extension sends conversation data to your Affinity account when you initiate a sync. All requests are authenticated with your personal API key.</li>
+    </ol>
+    <p>No other third-party services, analytics, or tracking tools are used.</p>
+
+    <h2>Permissions Explained</h2>
+    <ul>
+      <li><strong>storage</strong>: Save your API key and preferences locally</li>
+      <li><strong>activeTab</strong>: Access the current LinkedIn page when you interact with the extension</li>
+      <li><strong>notifications</strong>: Show desktop notifications when a sync completes</li>
+      <li><strong>alarms</strong>: Schedule periodic follow-up reminders and cache updates</li>
+      <li><strong>Host permissions for linkedin.com</strong>: Read conversation data from LinkedIn messaging pages</li>
+      <li><strong>Host permissions for api.affinity.co</strong>: Send data to your Affinity CRM account</li>
+    </ul>
+
+    <h2>Data Sharing</h2>
+    <p>We do not share, sell, or transfer any user data to third parties. The only data transmission is between your browser and the Affinity API, initiated by you.</p>
+
+    <h2>Data Retention</h2>
+    <p>The Extension does not retain your data beyond your browser&rsquo;s local storage. Uninstalling the extension removes all locally stored data.</p>
+
+    <h2>Children&rsquo;s Privacy</h2>
+    <p>The Extension is not directed at children under 13 and does not knowingly collect data from children.</p>
+
+    <h2>Changes to This Policy</h2>
+    <p>We may update this privacy policy from time to time. Changes will be reflected in the &ldquo;Last Updated&rdquo; date above.</p>
+
+    <h2>Contact</h2>
+    <p>If you have questions about this privacy policy, please open an issue on our <a href="https://github.com/Ogilthorp3/linkedin-affinity-extension">GitHub repository</a>.</p>
+
+    <hr>
+    <p class="footer"><strong>Triptyq Capital</strong></p>
+  </div>
+</body>
+</html>

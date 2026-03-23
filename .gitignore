@@ -22,6 +22,7 @@ coverage/
 dist/
 build/
 *.zip
+*.dmg
 
 # Xcode user data
 xcuserdata/
