@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      width: 512px;
+      height: 512px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    .holocron {
+      width: 400px;
+      height: 400px;
+      background: #0a0a0a;
+      border: 8px solid #ff0037; /* Sith Red */
+      position: relative;
+      box-shadow: 0 0 50px rgba(255, 0, 55, 0.6), inset 0 0 30px rgba(255, 0, 55, 0.4);
+      border-radius: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .inner-square {
+      width: 280px;
+      height: 280px;
+      border: 4px solid #ff0037;
+      transform: rotate(45deg);
+      position: absolute;
+      box-shadow: 0 0 20px rgba(255, 0, 55, 0.3);
+    }
+    .core {
+      width: 150px;
+      height: 150px;
+      background: radial-gradient(circle, #ff0037 0%, #660016 70%, #000 100%);
+      border-radius: 50%;
+      z-index: 2;
+      box-shadow: 0 0 40px #ff0037;
+    }
+    .pattern {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(45deg, #ff0037 1px, transparent 1px),
+        linear-gradient(-45deg, #ff0037 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.2;
+    }
+    .corner {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      border: 6px solid #ff0037;
+    }
+    .tl { top: -10px; left: -10px; border-right: none; border-bottom: none; border-top-left-radius: 20px; }
+    .tr { top: -10px; right: -10px; border-left: none; border-bottom: none; border-top-right-radius: 20px; }
+    .bl { bottom: -10px; left: -10px; border-right: none; border-top: none; border-bottom-left-radius: 20px; }
+    .br { bottom: -10px; right: -10px; border-left: none; border-top: none; border-bottom-right-radius: 20px; }
+  </style>
+</head>
+<body>
+  <div class="holocron">
+    <div class="pattern"></div>
+    <div class="inner-square"></div>
+    <div class="core"></div>
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+  </div>
+</body>
+</html>

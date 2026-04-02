@@ -67,7 +67,27 @@ test.describe('Holocron Command Center Diagnostic', () => {
       }
     }
 
-    // 4. Capture state
+    // 4. Visual Verification (Dashboard)
+    console.log('👁️ Performing Visual Sector Scan (Dashboard)...');
+    await page.goto('http://127.0.0.1:3333', { waitUntil: 'networkidle' });
+    // Mask the metrics since they change constantly (RAM/Disk)
+    await expect(page).toHaveScreenshot('holocron-dashboard-master.png', {
+      mask: [page.locator('.kyber-bar'), page.locator('.card div:last-child')],
+      maxDiffPixelRatio: 0.05
+    });
+    console.log('✅ Dashboard visual alignment verified.');
+
+    // 5. Visual Verification (Command Center)
+    console.log('👁️ Performing Visual Sector Scan (Command Center)...');
+    await shieldIcon.click();
+    await page.waitForTimeout(2000); // Wait for transition
+    await expect(page).toHaveScreenshot('holocron-command-master.png', {
+      mask: [page.locator('iframe')], // Mask the dynamic iframe content
+      maxDiffPixelRatio: 0.05
+    });
+    console.log('✅ Command Center visual alignment verified.');
+
+    // 6. Capture state
     const screenshotPath = path.join(__dirname, 'holocron-command-diagnostic.png');
     await page.screenshot({ path: screenshotPath, fullPage: true });
     console.log(`📸 Diagnostic screenshot saved to: ${screenshotPath}`);

@@ -51,6 +51,14 @@ const server = http.createServer((req, res) => {
     runMonitor();
     res.writeHead(202, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ message: 'Monitor run initiated' }));
+  } else if (req.url === '/run/obliteratus' && req.method === 'POST') {
+    console.log('[Sidecar] Triggering manual OBLITERATUS run...');
+    exec('npx playwright test tests/obliteratus-monitor.spec.js', {
+      cwd: path.join(__dirname, '..'),
+      env: process.env
+    });
+    res.writeHead(202, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ message: 'OBLITERATUS run initiated' }));
   } else {
     res.writeHead(404);
     res.end();
@@ -58,15 +66,25 @@ const server = http.createServer((req, res) => {
 });
 
 function runMonitor() {
+  console.log('[Sidecar] Starting full sector scan...');
+  
+  // Run LinkedIn Monitor
   exec('npx playwright test tests/linkedin-selector-monitor.spec.js', {
     cwd: path.join(__dirname, '..'),
     env: process.env
   }, (error, stdout, stderr) => {
-    console.log(stdout);
     if (error) {
-      console.error(`[Sidecar] Run failed: ${error.message}. Triggering Auto-Heal...`);
+      console.error(`[Sidecar] LinkedIn failed. Triggering Auto-Heal...`);
       autoHeal();
     }
+  });
+
+  // Run OBLITERATUS Monitor
+  exec('npx playwright test tests/obliteratus-monitor.spec.js', {
+    cwd: path.join(__dirname, '..'),
+    env: process.env
+  }, (error, stdout, stderr) => {
+    if (error) console.error('[Sidecar] OBLITERATUS sector degraded.');
   });
 }
 
