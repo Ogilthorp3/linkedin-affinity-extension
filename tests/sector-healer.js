@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+// Replaced playwright with agent-browser CLI for discovery
 const fs = require('fs');
 const path = require('path');
 
@@ -61,7 +61,7 @@ async function heal() {
   } catch (error) {
     console.error(`❌ Healing Protocol Failed: ${error.message}`);
   } finally {
-    await browser.close();
+    // browser closed via agent-browser CLI
   }
 }
 

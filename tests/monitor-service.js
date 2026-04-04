@@ -53,7 +53,7 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ message: 'Monitor run initiated' }));
   } else if (req.url === '/run/obliteratus' && req.method === 'POST') {
     console.log('[Sidecar] Triggering manual OBLITERATUS run...');
-    exec('npx playwright test tests/obliteratus-monitor.spec.js', {
+    exec('bash tests/obliteratus-monitor.sh', {
       cwd: path.join(__dirname, '..'),
       env: process.env
     });
@@ -69,7 +69,7 @@ function runMonitor() {
   console.log('[Sidecar] Starting full sector scan...');
   
   // Run LinkedIn Monitor
-  exec('npx playwright test tests/linkedin-selector-monitor.spec.js', {
+  exec('bash tests/linkedin-monitor.sh', {
     cwd: path.join(__dirname, '..'),
     env: process.env
   }, (error, stdout, stderr) => {
@@ -80,7 +80,7 @@ function runMonitor() {
   });
 
   // Run OBLITERATUS Monitor
-  exec('npx playwright test tests/obliteratus-monitor.spec.js', {
+  exec('bash tests/obliteratus-monitor.sh', {
     cwd: path.join(__dirname, '..'),
     env: process.env
   }, (error, stdout, stderr) => {
