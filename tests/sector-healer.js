@@ -1,4 +1,4 @@
-// Replaced playwright with agent-browser CLI for discovery
+// Uses agent-browser CLI for selector discovery during live healing.
 const fs = require('fs');
 const path = require('path');
 

@@ -62,14 +62,17 @@ See [SETUP.md](SETUP.md) for the full Safari walkthrough.
 - **Extension:** Vanilla JavaScript (ES6+), Chrome Extension Manifest V3 — no frameworks, no bundler
 - **Safari wrapper:** Swift (Xcode container app)
 - **APIs:** Affinity REST API, LinkedIn Voyager API (internal)
-- **Tests:** Jest with mocked browser APIs
+- **Tests:** Jest with mocked browser APIs, plus `agent-browser` shell diagnostics for live UI checks
 
 ## Development
 
 ```bash
 npm install               # Install dev dependencies (testing only)
 npm test                  # Run unit tests
+./remedy_environment.sh   # Self-healing: restores node_modules if missing
 npm run test:coverage     # Generate coverage report
+npm run test:agent-browser  # Run live agent-browser diagnostics
+npm run test:holocron       # Holocron iframe diagnostic
 npm run build             # Full build: sync files, test, build Xcode
 ```
 
@@ -95,6 +98,19 @@ LinkedIn Affinity/         # Safari wrapper (Xcode project)
 tests/                     # Jest unit, integration, and e2e tests
 scripts/                   # Build automation
 ```
+
+## Live Browser Diagnostics
+
+The repo now uses `agent-browser` for live browser diagnostics instead of Playwright:
+
+```bash
+npm run test:monitor:linkedin
+npm run test:monitor:obliteratus
+npm run test:holocron
+npm run test:vision
+```
+
+These scripts are intended for local operator sessions and write disposable artifacts into ignored report directories instead of keeping Playwright HTML reports in the repo.
 
 ## License
 

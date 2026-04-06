@@ -2,16 +2,14 @@
 # Build script for LinkedIn Affinity Safari Extension
 # Automates: sync files, run tests, build Xcode project
 
-set -e  # Exit on error
+set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Project paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 EXTENSION_DIR="$PROJECT_ROOT/Extension"
@@ -23,7 +21,6 @@ echo -e "${BLUE}LinkedIn Affinity Extension Build Script${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-# Parse arguments
 RUN_TESTS=true
 BUILD_XCODE=true
 OPEN_SAFARI=false
@@ -65,7 +62,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Step 1: Sync Extension files to Safari
 echo -e "${YELLOW}[1/4] Syncing Extension files to Safari...${NC}"
 
 sync_file() {
@@ -87,7 +83,6 @@ sync_file "$EXTENSION_DIR/styles.css" "$SAFARI_RESOURCES/styles.css"
 
 echo -e "${GREEN}  Files synced successfully${NC}"
 
-# Step 2: Run Jest unit tests
 if [ "$RUN_TESTS" = true ]; then
     echo ""
     echo -e "${YELLOW}[2/4] Running unit tests...${NC}"
@@ -111,7 +106,6 @@ else
     echo -e "${YELLOW}[2/4] Skipping unit tests${NC}"
 fi
 
-# Step 3: Build Xcode project
 if [ "$BUILD_XCODE" = true ]; then
     echo ""
     echo -e "${YELLOW}[3/4] Building Xcode project...${NC}"
@@ -142,7 +136,6 @@ else
     echo -e "${YELLOW}[3/4] Skipping Xcode build${NC}"
 fi
 
-# Step 4: Open Safari (optional)
 echo ""
 if [ "$OPEN_SAFARI" = true ]; then
     echo -e "${YELLOW}[4/4] Opening Safari...${NC}"

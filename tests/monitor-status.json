@@ -1,6 +1,0 @@
-{
-  "status": "ML_BREACH",
-  "lastRun": "2026-03-29T11:35:03.242Z",
-  "error": "page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:7860/\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:7860/\", waiting until \"networkidle\"\u001b[22m\n",
-  "sector": "OBLITERATUS"
-}

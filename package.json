@@ -10,12 +10,17 @@
     "test:integration": "jest --testPathPattern=integration --runInBand",
     "test:all": "jest --runInBand",
     "test:voyager": "node tests/test-voyager-direct.js",
-    "test:monitor": "npx playwright test tests/linkedin-selector-monitor.spec.js",
+    "test:monitor": "bash tests/linkedin-monitor.sh",
+    "test:monitor:linkedin": "bash tests/linkedin-monitor.sh",
+    "test:monitor:obliteratus": "bash tests/obliteratus-monitor.sh",
+    "test:holocron": "bash tests/holocron-diagnostic.sh",
+    "test:vision": "bash tests/vision-link.sh",
+    "test:icon": "bash tests/generate-icon.sh",
+    "test:agent-browser": "bash tests/linkedin-monitor.sh && bash tests/obliteratus-monitor.sh && bash tests/holocron-diagnostic.sh",
     "build": "./scripts/build.sh",
     "build:quick": "./scripts/build.sh --skip-tests"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0"
   }

@@ -5,6 +5,8 @@ node_modules/
 
 # Test coverage
 coverage/
+playwright-report/
+test-results/
 
 # Environment files (may contain API keys)
 .env
@@ -30,3 +32,11 @@ xcuserdata/
 
 # Claude Code internal docs
 CLAUDE.md
+
+# Browser automation artifacts
+tests/*-diagnostic.png
+tests/obliteratus-failure.png
+tests/debug-*.png
+tests/debug-*.txt
+tests/holocron-diagnostic.spec.js-snapshots/
+tests/monitor-status.json

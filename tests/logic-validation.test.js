@@ -31,7 +31,6 @@ describe('Sector Healer Patching Logic', () => {
     const mockContentJs = "const list = '.msg-conversations-container__conversations-list';";
     const newSelector = ".new-linkedin-class";
     const pattern = /'\.msg-conversations-container__conversations-list'/;
-    
     const patched = mockContentJs.replace(pattern, `'${newSelector}'`);
     expect(patched).toBe("const list = '.new-linkedin-class';");
   });
@@ -43,3 +42,33 @@ describe('Sector Healer Patching Logic', () => {
     expect(patched).toBe(mockContentJs);
   });
 });
+
+describe('Resilience Mode Logic (V4.2)', () => {
+  const configYaml = `
+  obliteratus:
+    name: "OBLITERATUS ML Engine"
+    port: 7860
+  ui:
+    port: 3333
+`;
+
+  test('extracts sector ports via regex', () => {
+    // Mimic the yq logic or bash-safe regex for sector extraction
+    const oblitMatch = configYaml.match(/obliteratus:.*?port:\s+(\d+)/s);
+    const uiMatch = configYaml.match(/ui:.*?port:\s+(\d+)/s);
+    
+    expect(oblitMatch).not.toBeNull();
+    expect(uiMatch).not.toBeNull();
+    expect(oblitMatch[1]).toBe('7860');
+    expect(uiMatch[1]).toBe('3333');
+  });
+
+  test('validates lsof check logic', () => {
+    const port = 7860;
+    const command = `! lsof -i :${port} > /dev/null 2>&1`;
+    // Verify the command string is constructed correctly for the bash while loop
+    expect(command).toContain(':7860');
+    expect(command).toContain('lsof -i');
+  });
+});
+

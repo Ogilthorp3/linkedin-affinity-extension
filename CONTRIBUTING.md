@@ -8,6 +8,7 @@ Quick reference for contributing to the LinkedIn Affinity extension.
 - npm
 - Xcode (for Safari builds)
 - Chrome or Safari browser
+- `agent-browser` on your `PATH` for live UI diagnostics
 
 ## Setup
 
@@ -27,6 +28,9 @@ npm install
 | `npm run test:integration` | Run integration tests (requires real API keys) |
 | `npm run test:all` | Run all tests sequentially |
 | `npm run test:voyager` | Test LinkedIn Voyager API directly |
+| `npm run test:agent-browser` | Run the live `agent-browser` monitor suite |
+| `npm run test:holocron` | Run the Holocron iframe diagnostic |
+| `npm run test:vision` | Capture the current live browser view |
 
 ### Building
 
@@ -65,6 +69,10 @@ Options:
 │   ├── mocks/browserAPI.js # Browser API mock factory
 │   ├── content.test.js     # content.js unit tests
 │   ├── background.test.js  # background.js unit tests
+│   ├── linkedin-monitor.sh # Live agent-browser LinkedIn monitor
+│   ├── obliteratus-monitor.sh # Live agent-browser Gradio monitor
+│   ├── holocron-diagnostic.sh # Holocron iframe diagnostic
+│   ├── vision-link.sh      # Live screenshot capture via agent-browser
 │   ├── integration/        # Real API integration tests
 │   │   └── affinity-api.test.js
 │   ├── e2e/                # End-to-end workflow tests
@@ -142,6 +150,18 @@ Full workflow simulation with mocked responses. Covers:
 - Organization linking (all work history)
 - Note creation with duplicate detection
 
+### Live UI Diagnostics
+The repo's real browser-facing diagnostics now use `agent-browser`, not Playwright:
+
+```bash
+npm run test:monitor:linkedin
+npm run test:monitor:obliteratus
+npm run test:holocron
+npm run test:vision
+```
+
+These scripts are intentionally shell-first so they can run against an already-authenticated local browser session and produce simple operator-friendly artifacts.
+
 ### Test Helpers (from `tests/setup.js`)
 
 ```javascript
@@ -215,6 +235,8 @@ console.log('[LinkedIn to Affinity] Creating person:', name);
 ```
 
 Open browser DevTools console to see logs.
+
+For live DOM and iframe diagnostics, prefer the `agent-browser` scripts in `tests/` over historical Playwright patterns.
 
 ## Making Changes
 
