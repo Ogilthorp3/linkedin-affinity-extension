@@ -1,6 +1,6 @@
 # Agent-Browser Debugging Guide
 
-This project now uses an `agent-browser` operator loop for live browser diagnostics instead of Playwright.
+This project now uses an `agent-browser` operator loop for live browser diagnostics instead of the older browser stack.
 
 ## The Strategy
 
@@ -10,7 +10,7 @@ LinkedIn changes its DOM constantly, so the repo keeps the live checks simple:
 2. The shell script captures semantic snapshots, screenshots, and minimal text artifacts.
 3. The operator reviews those artifacts and patches selectors or runtime behavior in `content.js`.
 
-This keeps the debugging path close to the real browser session instead of maintaining a parallel Playwright stack.
+This keeps the debugging path close to the real browser session instead of maintaining a parallel automation stack.
 
 ## Main Diagnostics
 

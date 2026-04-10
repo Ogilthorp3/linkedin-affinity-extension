@@ -20,7 +20,7 @@ if ! agent-browser --session holocron-diag open "http://127.0.0.1:3333"; then
   log "❌ Holocron UI (3333) is unreachable."
   exit 1
 fi
-agent-browser --session holocron-diag wait --load networkidle
+agent-browser --session holocron-diag wait 1000
 
 # 2. Switch to Command Tab
 log "🛡️ Attempting to switch to Command Center tab..."
@@ -53,5 +53,5 @@ fi
 
 # 4. Capture Final State
 log "📸 Capturing diagnostic screenshot..."
-agent-browser --session holocron-diag screenshot --full "$REPORT_DIR/holocron-command-diagnostic.png"
+agent-browser --session holocron-diag screenshot "$REPORT_DIR/holocron-command-diagnostic.png"
 log "✅ Diagnostic complete."

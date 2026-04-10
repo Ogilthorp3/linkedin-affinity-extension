@@ -24,7 +24,7 @@ try_monitor() {
     log "❌ OBLITERATUS UI unreachable."
     return 1
   fi
-  agent-browser --session obliteratus-monitor wait --load networkidle
+  agent-browser --session obliteratus-monitor wait 1000
 
   log "🔍 Locating Gradio interface blocks..."
   SNAPSHOT=$(agent-browser --session obliteratus-monitor snapshot -i)

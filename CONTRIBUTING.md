@@ -151,7 +151,7 @@ Full workflow simulation with mocked responses. Covers:
 - Note creation with duplicate detection
 
 ### Live UI Diagnostics
-The repo's real browser-facing diagnostics now use `agent-browser`, not Playwright:
+The repo's real browser-facing diagnostics now use `agent-browser`:
 
 ```bash
 npm run test:monitor:linkedin
@@ -236,7 +236,7 @@ console.log('[LinkedIn to Affinity] Creating person:', name);
 
 Open browser DevTools console to see logs.
 
-For live DOM and iframe diagnostics, prefer the `agent-browser` scripts in `tests/` over historical Playwright patterns.
+For live DOM and iframe diagnostics, prefer the `agent-browser` scripts in `tests/` over the older browser workflow.
 
 ## Making Changes
 

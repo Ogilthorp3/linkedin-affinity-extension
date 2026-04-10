@@ -69,7 +69,7 @@ trap cleanup EXIT
 try_monitor() {
   # Use a named session for isolation
   agent-browser --session linkedin-monitor --state "$AUTH_JSON" open "https://www.linkedin.com/messaging/"
-  agent-browser --session linkedin-monitor wait --load networkidle
+  agent-browser --session linkedin-monitor wait 1000
   
   log "⏳ Checking for messaging list..."
   # Take a snapshot to find interactive elements
@@ -96,7 +96,7 @@ try_monitor() {
   else
     log "❌ UI Selectors mismatch."
     # Capture debug data
-    agent-browser --session linkedin-monitor screenshot --full "$REPORT_DIR/debug-linkedin-state.png"
+    agent-browser --session linkedin-monitor screenshot "$REPORT_DIR/debug-linkedin-state.png"
     agent-browser --session linkedin-monitor get text body > "$REPORT_DIR/debug-linkedin-state.txt"
     return 1
   fi

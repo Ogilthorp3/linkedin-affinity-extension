@@ -101,7 +101,7 @@ scripts/                   # Build automation
 
 ## Live Browser Diagnostics
 
-The repo now uses `agent-browser` for live browser diagnostics instead of Playwright:
+The repo now uses `agent-browser` for live browser diagnostics:
 
 ```bash
 npm run test:monitor:linkedin
@@ -110,7 +110,7 @@ npm run test:holocron
 npm run test:vision
 ```
 
-These scripts are intended for local operator sessions and write disposable artifacts into ignored report directories instead of keeping Playwright HTML reports in the repo.
+These scripts are intended for local operator sessions and write disposable artifacts into ignored report directories instead of keeping heavyweight HTML reports in the repo.
 
 ## License
 

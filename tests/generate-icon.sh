@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate the Sith Holocron icon using agent-browser instead of Playwright.
+# Generate the Sith Holocron icon using agent-browser.
 
 set -euo pipefail
 
@@ -14,7 +14,8 @@ cleanup() {
 trap cleanup EXIT
 
 agent-browser --session "$SESSION" open "file://$HTML_PATH"
-agent-browser --session "$SESSION" screenshot --full "$OUTPUT_PATH"
+agent-browser --session "$SESSION" wait 500
+agent-browser --session "$SESSION" screenshot "$OUTPUT_PATH"
 
 if [[ -f "$OUTPUT_PATH" ]]; then
   echo "Generated icon: $OUTPUT_PATH"
