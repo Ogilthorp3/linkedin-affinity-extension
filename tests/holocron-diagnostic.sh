@@ -24,9 +24,9 @@ agent-browser --session holocron-diag wait 1000
 
 # 2. Switch to Command Tab
 log "🛡️ Attempting to switch to Command Center tab..."
-# The Command icon is the 3rd nav item
-agent-browser --session holocron-diag find role navigation click --name "Shield" || \
-agent-browser --session holocron-diag click "nav.sidebar .nav-icon:nth-child(3)"
+# The Command icon has data-testid="nav-command"
+agent-browser --session holocron-diag wait 3000
+agent-browser --session holocron-diag click "[data-testid=\"nav-command\"]"
 
 # 3. Inspect Iframe
 log "🔍 Locating Command Center Iframe..."
